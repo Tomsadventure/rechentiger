@@ -1,0 +1,17 @@
+{
+  "name": "Rechentiger – Plus und Minus bis 100",
+  "short_name": "Rechentiger",
+  "description": "Plus und Minus bis 100 für die 2. Klasse – mit Tiko, dem Tigerbaby.",
+  "lang": "de-CH",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFF4E2",
+  "theme_color": "#FFF4E2",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
