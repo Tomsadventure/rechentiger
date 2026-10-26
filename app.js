@@ -43,6 +43,10 @@ const GAME_STICKERS = SPIELE.flatMap(g => g.stickers);
 const STICKER = Object.fromEntries([...STICKERS, ...GAME_STICKERS]);
 const ALL = STICKERS.length + GAME_STICKERS.length;
 const SCHATZBILDER = ['insel', 'hoehle', 'berg', 'meer'];
+/* Sammelbuch: Seite 0 = Umschlag, 1 = »Dieses Buch gehört«, 2 = Titelseite, 3–14 = sechs gemalte Doppelseiten */
+const SZENEN = [['dschungel', 'Im Dschungel'], ['meer', 'Am Meer'], ['berge', 'In den Bergen'], ['unterwasser', 'Unter Wasser'],
+  ['winter', 'Im Winter'], ['nacht', 'In der Nacht']];
+const BUCH_SEITEN = 3 + 2 * SZENEN.length;
 const img = name => `img/${name}.webp`;
 
 /* ================================================================ Speicher */
@@ -59,6 +63,7 @@ function load() {
     stufen: d.stufen && typeof d.stufen === 'object' ? d.stufen : {},      // n -> { best: 0–3, rounds }
     stickers: Array.isArray(d.stickers) ? d.stickers.filter(s => STICKER[s]) : [],
     spiele: d.spiele && typeof d.spiele === 'object' ? d.spiele : {},       // id -> { level, best: { leicht: 0–3, … }, games, pic }
+    buch: buchLaden(d.buch),                                                 // { placed: [{ s, p, x, y, r }], p, seen }
     rounds: d.rounds || 0,
     albumSeen: !!d.albumSeen,
     spieleSeen: !!d.spieleSeen,
@@ -67,6 +72,15 @@ function load() {
   };
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* egal */ } }
+/* Sammelbuch: jeder Sticker höchstens einmal eingeklebt, x/y = Mitte in % der Seite, r = Drehung in Grad */
+function buchLaden(b) {
+  b = b && typeof b === 'object' ? b : {};
+  const seen = new Set();
+  const placed = (Array.isArray(b.placed) ? b.placed : [])
+    .filter(x => x && STICKER[x.s] && !seen.has(x.s) && seen.add(x.s) && x.p >= 1 && x.p < BUCH_SEITEN)
+    .map(x => ({ s: x.s, p: Math.round(x.p), x: +x.x || 50, y: +x.y || 50, r: +x.r || 0 }));
+  return { placed, p: Math.min(BUCH_SEITEN - 1, Math.max(0, Math.round(b.p) || 0)), seen: !!b.seen };
+}
 const best = n => (S.stufen[n] && S.stufen[n].best) || 0;
 /* Empfohlen: die erste Stufe mit weniger als 2 Sternen; alles geschafft = gemischt */
 function recommended() {
@@ -99,6 +113,11 @@ const ICON = {
   install: I('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>'),
   album: I('<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 3v18"/><circle cx="14" cy="10" r="2.6"/><path d="M11 16.5c.8-1.6 1.8-2.4 3-2.4s2.2.8 3 2.4"/>'),
   bucket: I('<path d="M4.5 9h15l-1.7 10.3a2 2 0 0 1-2 1.7H8.2a2 2 0 0 1-2-1.7z"/><path d="M6.5 9c0-5 11-5 11 0"/>'),
+  fwd: I('<path d="M9 18l6-6-6-6"/>'),
+  book: I('<path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/>'),
+  rotL: I('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>'),
+  rotR: I('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>'),
+  peel: I('<path d="M5 4h9l5 5v11H5z"/><path d="M14 4v5h5"/><path d="M9 14l2 2 4-4"/>'),
 };
 const PAW = `<svg class="paw" viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="21.5" rx="7.2" ry="6.2"/><ellipse cx="7.2" cy="13.6" rx="3.1" ry="3.8" transform="rotate(-18 7.2 13.6)"/><ellipse cx="12.6" cy="8.2" rx="3.1" ry="4" transform="rotate(-6 12.6 8.2)"/><ellipse cx="19.4" cy="8.2" rx="3.1" ry="4" transform="rotate(6 19.4 8.2)"/><ellipse cx="24.8" cy="13.6" rx="3.1" ry="3.8" transform="rotate(18 24.8 13.6)"/></svg>`;
 const STAR = '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9z"/></svg>';
@@ -108,7 +127,7 @@ const starsHTML = (n, cls = '') => `<span class="stars ${cls}" aria-label="${n} 
    Stimme: MP3s aus audio/ hintereinander (Web Audio, damit auf dem iPhone nichts stockt).
    Geräusche: kleine Klänge direkt erzeugt (keine Dateien). */
 const Sound = (() => {
-  let ctx = null, out = null, sfxBus = null, voiceBus = null;
+  let ctx = null, out = null, sfxBus = null, voiceBus = null, fxBus = null;
   const bytes = new Map();
   let bufs = new Map(), src = null, queue = [], playing = false, tok = 0;
 
@@ -123,6 +142,7 @@ const Sound = (() => {
     out.connect(ctx.destination);
     voiceBus = ctx.createGain(); voiceBus.gain.value = 1; voiceBus.connect(out);
     sfxBus = ctx.createGain(); sfxBus.gain.value = 0.5; sfxBus.connect(out);
+    fxBus = ctx.createGain(); fxBus.gain.value = 0.8; fxBus.connect(out);
     return ctx;
   }
   function ready() {
@@ -198,6 +218,14 @@ const Sound = (() => {
   }
   const preload = names => names.forEach(n => typeof n === 'string' && fetchBytes(n));
   const busy = () => playing;
+  /* Geräusch aus audio/ (Blättern, Kleben): sofort, neben der Stimme, ohne ihre Warteschlange anzufassen */
+  async function fx(n) {
+    if (!S.settings.sounds || !ready()) return;
+    const b = await buffer(n);
+    if (!b || !ctx) return;
+    const s = ctx.createBufferSource();
+    s.buffer = b; s.connect(fxBus); s.start();
+  }
 
   const note = m => 440 * Math.pow(2, (m - 69) / 12);
   function env(g, t, a, peak, decay) {
@@ -260,7 +288,7 @@ const Sound = (() => {
       [84, 88, 91, 96, 100].forEach((m, i) => bell(note(m), t + i * 0.065, 0.55));
     },
   };
-  return { say, stop, preload, sfx, ready, busy };
+  return { say, stop, preload, sfx, ready, busy, fx };
 })();
 const sfx = Sound.sfx;
 const voiceOn = () => S.settings.voice;
@@ -291,6 +319,7 @@ function nav(name, params = {}, push = true) {
   clearTimeout(timer);
   if (view.name === 'quiz' && name !== 'quiz' && name !== 'result') { Q = null; Sound.stop(); }
   if (GAME_VIEWS.includes(view.name) && !GAME_VIEWS.includes(name)) stopGame();
+  if (view.name === 'buch') buchAufraeumen();
   view = Object.assign({ name }, params);
   if (push) { try { history.pushState({ name }, ''); } catch (e) { /* file:// */ } }
   render();
@@ -302,7 +331,8 @@ window.addEventListener('popstate', e => {
   clearTimeout(timer);
   if (view.name === 'quiz' || view.name === 'result') { Q = null; Sound.stop(); }
   stopGame();
-  view = ['album', 'spiele'].includes(st.name) ? { name: st.name } : { name: 'home' };
+  if (view.name === 'buch') buchAufraeumen();
+  view = ['album', 'spiele', 'buch'].includes(st.name) ? { name: st.name } : { name: 'home' };
   closeSheet(true);
   render();
 });
@@ -318,6 +348,7 @@ function render() {
   else if (view.name === 'schatz') { app.innerHTML = schatzHTML(); schatzShow(); }
   else if (view.name === 'fische') { app.innerHTML = fischeHTML(); fischeSetup(); }
   else if (view.name === 'spielende') app.innerHTML = spielendeHTML(view.res);
+  else if (view.name === 'buch') { app.innerHTML = buchHTML(); buchZeigen(); }
 }
 
 /* ------------------------------------------------------------------ Start */
@@ -342,6 +373,11 @@ function homeHTML() {
     <button class="games-banner" data-act="spiele">
       <span class="gb-pics" aria-hidden="true">${SPIELE.map(g => `<img src="${img(g.pose)}" alt="">`).join('')}</span>
       <span class="gb-text"><b>Tikos Spiele</b><small>${SPIELE.map(g => g.name).join(' · ')}</small></span>
+      ${ICON.next}
+    </button>
+    <button class="book-banner" data-act="buch">
+      <span class="bb-book" aria-hidden="true">${ICON.book}</span>
+      <span class="gb-text"><b>Mein Sammelbuch</b><small>${buchStand()}</small></span>
       ${ICON.next}
     </button>
     <h2 class="path-title"><span>Der Dschungelpfad</span><small>Tippe auf eine Stufe</small></h2>
@@ -694,6 +730,7 @@ function resultHTML(res) {
     <div class="res-actions">
       ${nextStufe ? `<button class="btn primary big" data-act="start" data-stufe="${nextStufe}"><span><b>Nächste Stufe</b><small>Stufe ${nextStufe} · ${R.STUFEN[nextStufe - 1].name}</small></span>${ICON.next}</button>` : ''}
       <button class="btn ${nextStufe ? '' : 'primary big'}" data-act="start" data-stufe="${res.stufe}">${ICON.again}<span>Nochmal</span></button>
+      ${res.sticker ? `<button class="btn" data-act="buch">${ICON.book}<span>Einkleben</span></button>` : ''}
       <button class="btn" data-act="home">${PAW}<span>Zum Dschungelpfad</span></button>
     </div>
   </div>`;
@@ -710,6 +747,11 @@ function albumHTML() {
       <span class="count">${have.size}/${ALL}</span>
     </header>
     <p class="album-intro">Für jede geschaffte Runde bekommst du einen neuen Sticker. Sammelst du alle ${STICKERS.length}?</p>
+    <button class="book-banner small" data-act="buch">
+      <span class="bb-book" aria-hidden="true">${ICON.book}</span>
+      <span class="gb-text"><b>Ins Sammelbuch einkleben</b><small>${buchStand()}</small></span>
+      ${ICON.next}
+    </button>
     <section class="album-grid">
       ${STICKERS.map(([s, title], i) => have.has(s) ? card(s, title, i)
         : `<div class="slotcard empty ${s === LAST ? 'last' : ''}">${s === LAST ? '<span class="crown">♛</span>' : PAW}<span>${s === LAST ? 'Ganz zum Schluss' : '?'}</span></div>`).join('')}
@@ -854,6 +896,7 @@ function spielendeHTML(res) {
     <div class="res-actions">
       ${harder ? `<button class="btn primary big" data-act="spiel" data-g="${res.g}" data-level="${harder}"><span><b>Schwerer</b><small>${g.name} · ${LEVEL_NAME[harder]}</small></span>${ICON.next}</button>` : ''}
       <button class="btn ${harder ? '' : 'primary big'}" data-act="spiel" data-g="${res.g}" data-level="${res.level}">${ICON.again}<span>Nochmal</span></button>
+      ${res.sticker ? `<button class="btn" data-act="buch">${ICON.book}<span>Einkleben</span></button>` : ''}
       <button class="btn" data-act="spiele">${PAW}<span>Andere Spiele</span></button>
     </div>
   </div>`;
@@ -1285,6 +1328,337 @@ function fishCaught(f, ans) {
   }, 1300);
 }
 
+/* ---------------------------------------------------------- Sammelbuch
+   Ein Buch zum freien Einkleben: Sticker aus dem Stapel unten auf eine Seite ziehen (oder antippen), verschieben,
+   drehen (Knöpfe oder zwei Finger) und wieder ablösen. Blättern mit den Pfeilen, mit Wischen oder den Pfeiltasten.
+   Breiter Bildschirm: Doppelseite, sonst eine Seite. Jeder gesammelte Sticker lässt sich genau einmal einkleben. */
+const BK = { busy: false, pend: null, drag: null, swipe: null, sel: null, L: null, from: 'home' };
+const STICKER_BREITE = 0.32;                  // Anteil der Seitenbreite (gleich wie .pst in style.css)
+const eingeklebt = () => S.buch.placed.filter(x => S.stickers.includes(x.s));
+const freieSticker = () => S.stickers.filter(s => !S.buch.placed.some(x => x.s === s)).reverse();      // der neuste zuerst
+const buchStand = () => (S.stickers.length ? `${eingeklebt().length} von ${S.stickers.length} Stickern eingeklebt` : 'Hier klebst du deine Sticker ein');
+function seiteInfo(p) {
+  if (p === 0) return { art: 'umschlag' };
+  if (p === 1) return { art: 'exlibris' };
+  if (p === 2) return { art: 'titel' };
+  return { art: 'szene', szene: Math.floor((p - 3) / 2), links: (p - 3) % 2 === 0, nr: p - 2 };
+}
+/* Doppelseiten: 0 = zu (nur der Umschlag, rechts), 1 = Seiten 1 + 2, 2 = 3 + 4 … */
+const blattVon = p => (p === 0 ? 0 : Math.ceil(p / 2));
+const seitenVon = s => (s === 0 ? [null, 0] : [2 * s - 1, 2 * s]);
+const LETZTES_BLATT = blattVon(BUCH_SEITEN - 1);
+
+function buchHTML() {
+  return `<div class="screen buch" id="buch">
+    <header class="bar">
+      <button class="icon-btn" data-act="buch-zu" aria-label="Zurück">${ICON.back}</button>
+      <h1 class="bar-title">Sammelbuch</h1>
+      <span class="count" id="buch-count"></span>
+    </header>
+    <div class="stage" id="stage"><div class="book" id="book"></div></div>
+    <nav class="buch-nav">
+      <button class="icon-btn" data-act="blatt" data-d="-1" id="blatt-zurueck" aria-label="Zurückblättern">${ICON.back}</button>
+      <span class="buch-wo" id="buch-wo"></span>
+      <button class="icon-btn" data-act="blatt" data-d="1" id="blatt-vor" aria-label="Weiterblättern">${ICON.fwd}</button>
+    </nav>
+    <section class="tray" id="tray" aria-label="Deine Sticker zum Einkleben"></section>
+    <div class="st-tools" id="st-tools" hidden>
+      <button data-act="st-rot" data-d="-15" aria-label="Nach links drehen">${ICON.rotL}</button>
+      <button data-act="st-rot" data-d="15" aria-label="Nach rechts drehen">${ICON.rotR}</button>
+      <button class="weg" data-act="st-weg">${ICON.peel}<span>Ablösen</span></button>
+    </div>
+  </div>`;
+}
+function oeffneBuch() {
+  BK.from = ['album', 'spiele'].includes(view.name) ? view.name : 'home';
+  Sound.preload(['blaettern', 'kleben', 'abloesen', 'buch_start', 'buch_klebt', 'buch_leer']);
+  nav('buch');
+  if (!S.buch.seen) { S.buch.seen = true; save(); say('buch_start'); }        // die Erklärung nur beim ersten Mal
+  else if (S.stickers.length && !freieSticker().length) say('buch_leer');
+}
+function buchZeigen() { zeichneStapel(); zeichneBuch(); }          // zuerst der Stapel: seine Höhe bestimmt die Buchgrösse
+function buchAufraeumen() {
+  if (BK.drag) BK.drag.g.remove();
+  Object.assign(BK, { drag: null, pend: null, swipe: null, sel: null, busy: false });
+}
+/* Wie gross wird eine Seite? Seiten sind 3 : 4 (hoch). Doppelseite, wenn genug Breite da ist (iPad quer, PC). */
+function buchMasse() {
+  const st = document.getElementById('stage'), W = st.clientWidth, H = st.clientHeight - 20;
+  const doppel = W >= 640 && W / H >= 1.15;
+  const pw = Math.floor(Math.max(120, doppel ? Math.min(W / 2 - 16, H * 0.75) : Math.min(W - 20, H * 0.75)));
+  return { doppel, pw, ph: Math.round(pw / 0.75) };
+}
+function zeichneBuch() {
+  const book = document.getElementById('book');
+  if (!book) return;
+  const L = BK.L = buchMasse(), s = blattVon(S.buch.p);
+  const [l, r] = L.doppel ? seitenVon(s) : [null, S.buch.p];
+  book.className = `book ${L.doppel ? 'doppel' : 'einzel'}${L.doppel && s === 0 ? ' zu' : ''}`;
+  book.style.setProperty('--pw', `${L.pw}px`);
+  book.style.setProperty('--ph', `${L.ph}px`);
+  book.innerHTML = `<div class="spread">${L.doppel ? seiteHTML(l, 'links') : ''}${seiteHTML(r, L.doppel ? 'rechts' : 'solo')}</div>`;
+  document.getElementById('blatt-vor').disabled = L.doppel ? s >= LETZTES_BLATT : S.buch.p >= BUCH_SEITEN - 1;
+  document.getElementById('blatt-zurueck').disabled = S.buch.p === 0;
+  document.getElementById('buch-wo').textContent = woText(L.doppel, s);
+  const n = eingeklebt().length, c = document.getElementById('buch-count');
+  c.textContent = `${n}/${S.stickers.length}`;
+  c.setAttribute('aria-label', `${n} von ${S.stickers.length} Stickern eingeklebt`);
+  if (BK.sel != null && !document.querySelector(`#book .pst[data-k="${BK.sel}"]`)) BK.sel = null;
+  zeigeWerkzeug();
+}
+function woText(doppel, s) {
+  const p = S.buch.p;
+  if (p === 0) return 'Umschlag';
+  if (doppel ? s === 1 : p <= 2) return doppel ? 'Vorne im Buch' : p === 1 ? 'Dieses Buch gehört …' : 'Titelseite';
+  const a = seiteInfo(doppel ? 2 * s - 1 : p);
+  return doppel ? `Seite ${a.nr}–${a.nr + 1} · ${SZENEN[a.szene][1]}` : `Seite ${a.nr} von ${2 * SZENEN.length} · ${SZENEN[a.szene][1]}`;
+}
+/* Eine Seite. live = mit antippbaren Stickern (nicht auf dem Blatt, das gerade umgeblättert wird) */
+function seiteHTML(p, seite, live = true) {
+  if (p == null) return `<div class="page ${seite} leer"></div>`;
+  const a = seiteInfo(p);
+  if (a.art === 'umschlag') {
+    return `<div class="page ${seite} umschlag" data-act="buch-auf" style="background-image:url(${img('buch_umschlag')})">
+      <span class="u-titel"><small>Mein</small><b>Tiger-Sammelbuch</b></span>
+      <span class="u-bild"><img src="${img('tiko_hallo')}" alt=""></span>
+      <span class="u-name">${esc(name())}</span>
+    </div>`;
+  }
+  let inhalt = '', stil = '', cls = a.art;
+  if (a.art === 'exlibris') {
+    inhalt = `<div class="exlibris-rahmen"><img src="${img('tiko_hallo')}" alt=""><span class="ex-klein">Dieses Buch gehört</span>
+      <span class="ex-name">${esc(name()) || '…………'}</span><span class="ex-pfoten">${PAW}${PAW}${PAW}</span></div>`;
+  } else if (a.art === 'titel') {
+    inhalt = `<div class="titel-inhalt"><span class="t-klein">Mein</span><span class="t-gross">Tiger-Sammelbuch</span><img src="${img('tiko_jubel')}" alt="">
+      <span class="t-text">Zieh deine Sticker von unten auf eine Seite und kleb sie ein, wo du willst. Tippst du einen an, kannst du ihn drehen oder ablösen.</span></div>`;
+  } else {
+    stil = ` style="background-image:url(${img('seite_' + SZENEN[a.szene][0])})"`;
+    cls += a.links ? ' halb-l' : ' halb-r';
+    inhalt = `${a.links ? `<span class="szene-name">${SZENEN[a.szene][1]}</span>` : ''}<span class="seiten-nr">${a.nr}</span>`;
+  }
+  const st = S.buch.placed.map((x, k) => [x, k]).filter(([x]) => x.p === p && S.stickers.includes(x.s));
+  return `<div class="page ${seite} ${cls}" data-p="${p}"${stil}>${inhalt}${st.map(([x, k]) =>
+    `<img class="pst${live && BK.sel === k ? ' sel' : ''}"${live ? ` data-act="pst" data-k="${k}"` : ''} src="${img('sticker_' + x.s)}" alt="${esc(STICKER[x.s])}" draggable="false" style="left:${x.x}%;top:${x.y}%;--r:${x.r}deg">`).join('')}<i class="falz" aria-hidden="true"></i></div>`;
+}
+function zeichneStapel() {
+  const t = document.getElementById('tray');
+  if (!t) return;
+  const frei = freieSticker();
+  t.innerHTML = frei.length
+    ? `<div class="tray-kopf"><b>Deine Sticker (${frei.length})</b><span>Auf eine Seite ziehen oder antippen</span></div>
+      <div class="tray-row">${frei.map(s => `<button class="tray-st" data-act="tray-st" data-s="${s}" aria-label="${esc(STICKER[s])} einkleben"><img src="${img('sticker_' + s)}" alt="" draggable="false"></button>`).join('')}</div>`
+    : `<p class="tray-leer">${S.stickers.length ? 'Alle deine Sticker sind eingeklebt. Neue bekommst du beim Rechnen und in den Spielen.' : 'Noch keine Sticker. Rechne eine Runde oder spiele ein Spiel – dann bekommst du den ersten!'}</p>`;
+}
+
+/* ---- Blättern: das umgeblätterte Blatt dreht sich in 3D um den Buchrücken, darunter liegen schon die neuen Seiten ---- */
+function blaettern(d) {
+  if (BK.busy || BK.drag || !BK.L) return;
+  const L = BK.L, p0 = S.buch.p;
+  let p1;
+  if (L.doppel) {
+    const s1 = blattVon(p0) + d;
+    if (s1 < 0 || s1 > LETZTES_BLATT) return;
+    p1 = s1 === 0 ? 0 : 2 * s1 - 1;
+  } else {
+    p1 = p0 + d;
+    if (p1 < 0 || p1 >= BUCH_SEITEN) return;
+  }
+  waehle(null);
+  Sound.fx('blaettern');
+  S.buch.p = p1;
+  save();
+  if (reduced()) { zeichneBuch(); return; }
+  BK.busy = true;
+  const book = document.getElementById('book'), spread = book.querySelector('.spread');
+  let unten, blatt;
+  if (L.doppel) {
+    const [l0, r0] = seitenVon(blattVon(p0)), [l1, r1] = seitenVon(blattVon(p1));
+    if (d > 0) { unten = seiteHTML(l0, 'links', false) + seiteHTML(r1, 'rechts', false); blatt = ['vor', seiteHTML(r0, 'rechts', false), seiteHTML(l1, 'links', false)]; }
+    else { unten = seiteHTML(l1, 'links', false) + seiteHTML(r0, 'rechts', false); blatt = ['zurueck', seiteHTML(l0, 'links', false), seiteHTML(r1, 'rechts', false)]; }
+    book.classList.toggle('zu', blattVon(p1) === 0);              // zuklappen / aufklappen: das Buch rutscht in die Mitte
+  } else if (d > 0) {
+    unten = seiteHTML(p1, 'solo', false); blatt = ['vor', seiteHTML(p0, 'solo', false), '<div class="page solo rueckseite"></div>'];
+  } else {
+    unten = seiteHTML(p0, 'solo', false); blatt = ['rein', seiteHTML(p1, 'solo', false), '<div class="page solo rueckseite"></div>'];
+  }
+  spread.innerHTML = unten;
+  book.insertAdjacentHTML('beforeend', `<div class="leaf ${blatt[0]}"><div class="face vorne">${blatt[1]}</div><div class="face hinten">${blatt[2]}</div></div>`);
+  document.getElementById('buch-wo').textContent = woText(L.doppel, blattVon(p1));
+  setTimeout(() => { BK.busy = false; if (view.name === 'buch') zeichneBuch(); }, 820);
+}
+
+/* ---- Einkleben, auswählen, drehen, ablösen ---- */
+function einkleben(s, p, x, y, r, k) {        // k = schon eingeklebt (verschoben)
+  const item = k != null ? S.buch.placed.splice(k, 1)[0] : { s };
+  Object.assign(item, { p, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, r: Math.round(r) });
+  S.buch.placed.push(item);                    // zuletzt geklebt = zuoberst
+  save();
+  Sound.fx('kleben');
+  BK.sel = null;
+  buchZeigen();
+  const el = document.querySelector(`#book .pst[data-k="${S.buch.placed.length - 1}"]`);
+  if (el && !reduced()) el.classList.add('klebt');
+  if (k == null && eingeklebt().length === 1) say('buch_klebt');        // beim allerersten Sticker
+}
+/* Antippen im Stapel: auf die sichtbare Seite mit weniger Stickern, ungefähr in die Mitte */
+function antippenEinkleben(s) {
+  if (BK.busy || BK.drag) return;
+  if (S.buch.p === 0) { blaettern(1); setTimeout(() => { if (view.name === 'buch') antippenEinkleben(s); }, 850); return; }
+  const ziel = [...document.querySelectorAll('#book .spread .page[data-p]')].map(e => +e.dataset.p).filter(p => p > 0)
+    .map(p => ({ p, n: S.buch.placed.filter(x => x.p === p).length })).sort((a, b) => a.n - b.n || b.p - a.p)[0];
+  if (ziel) einkleben(s, ziel.p, 30 + Math.random() * 40, 30 + Math.random() * 40, Math.random() * 20 - 10, null);
+}
+function waehle(k) {
+  BK.sel = k;
+  document.querySelectorAll('#book .pst.sel').forEach(e => e.classList.remove('sel'));
+  const el = k != null && document.querySelector(`#book .pst[data-k="${k}"]`);
+  if (el) el.classList.add('sel'); else BK.sel = null;
+  zeigeWerkzeug();
+}
+/* Die kleine Leiste über dem gewählten Sticker: drehen, ablösen */
+function zeigeWerkzeug() {
+  const t = document.getElementById('st-tools');
+  if (!t) return;
+  const el = BK.sel != null && document.querySelector(`#book .pst[data-k="${BK.sel}"]`);
+  t.hidden = !el;
+  if (!el) return;
+  const r = el.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+  let top = r.top - t.offsetHeight - 10;
+  if (top < 8) top = r.bottom + 10;
+  t.style.left = `${Math.max(8, Math.min(vw - t.offsetWidth - 8, r.left + r.width / 2 - t.offsetWidth / 2))}px`;
+  t.style.top = `${top}px`;
+}
+function drehen(d) {
+  const x = S.buch.placed[BK.sel];
+  if (!x) return;
+  x.r = ((x.r + d + 540) % 360) - 180;
+  save();
+  sfx.tap();
+  const el = document.querySelector(`#book .pst[data-k="${BK.sel}"]`);
+  if (el) el.style.setProperty('--r', `${x.r}deg`);
+  zeigeWerkzeug();
+}
+function abloesen(k, leise) {
+  if (!S.buch.placed[k]) return;
+  S.buch.placed.splice(k, 1);
+  save();
+  if (leise) sfx.tap(); else Sound.fx('abloesen');
+  BK.sel = null;
+  buchZeigen();
+}
+
+/* ---- Ziehen: mit einem Finger (oder der Maus) verschieben, ein zweiter Finger dreht ---- */
+const punkt = e => ({ x: e.clientX, y: e.clientY });
+app.addEventListener('pointerdown', e => {
+  if (view.name !== 'buch' || BK.busy) return;
+  if (BK.drag) {                                // zweiter Finger: ab jetzt wird gedreht
+    if (e.pointerType === 'touch' && BK.drag.ptr.size === 1) { BK.drag.ptr.set(e.pointerId, punkt(e)); BK.drag.w0 = null; }
+    return;
+  }
+  const tray = e.target.closest('.tray-st'), pst = e.target.closest('#book .pst');
+  if (tray) BK.pend = { art: 'neu', s: tray.dataset.s, el: tray, id: e.pointerId, ...punkt(e) };
+  else if (pst) { BK.pend = { art: 'zug', k: +pst.dataset.k, el: pst, id: e.pointerId, ...punkt(e) }; e.preventDefault(); }
+  else if (e.target.closest('#book')) BK.swipe = { id: e.pointerId, ...punkt(e) };
+  if (!e.target.closest('.st-tools, #book .pst')) waehle(null);
+});
+window.addEventListener('pointermove', e => {
+  if (view.name !== 'buch') return;
+  const pd = BK.pend;
+  if (pd && e.pointerId === pd.id) {
+    const dx = e.clientX - pd.x, dy = e.clientY - pd.y;
+    if (pd.art === 'neu') {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) ziehStart(pd, e);
+      else if (Math.abs(dx) > 14) BK.pend = null;          // der Stapel wird seitwärts gescrollt
+    } else if (Math.hypot(dx, dy) > 6) ziehStart(pd, e);
+  }
+  const dr = BK.drag;
+  if (dr && dr.ptr.has(e.pointerId)) { dr.ptr.set(e.pointerId, punkt(e)); ziehBewegen(); }
+}, { passive: true });
+function ziehStart(pd, e) {
+  BK.pend = null;
+  const zug = pd.art === 'zug', x = zug && S.buch.placed[pd.k];
+  if (zug && !x) return;
+  const size = BK.L.pw * STICKER_BREITE;
+  let off = { x: 0, y: size * 0.3 };          // ein neuer Sticker hängt etwas über dem Finger, damit man ihn sieht
+  if (zug) {
+    const r = pd.el.getBoundingClientRect();
+    off = { x: pd.x - (r.left + r.width / 2), y: pd.y - (r.top + r.height / 2) };
+    pd.el.style.visibility = 'hidden';
+  } else pd.el.classList.add('weg');
+  const g = document.createElement('img');
+  g.className = 'ghost'; g.alt = ''; g.src = img('sticker_' + (zug ? x.s : pd.s));
+  g.style.width = `${size}px`;
+  fxRoot.appendChild(g);
+  BK.drag = { art: pd.art, s: zug ? x.s : pd.s, k: pd.k, el: pd.el, g, off, r: zug ? x.r : Math.round(Math.random() * 16 - 8),
+    ptr: new Map([[pd.id, punkt(e)]]), haupt: pd.id, w0: null, r0: 0, cx: 0, cy: 0 };
+  waehle(null);
+  Sound.fx('abloesen');
+  ziehBewegen();
+}
+function ziehBewegen() {
+  const dr = BK.drag, pts = [...dr.ptr.values()];
+  if (pts.length >= 2) {
+    const w = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x) * 180 / Math.PI;
+    if (dr.w0 == null) { dr.w0 = w; dr.r0 = dr.r; }
+    dr.r = Math.round(dr.r0 + w - dr.w0);
+  }
+  const h = dr.ptr.get(dr.haupt) || pts[0];
+  dr.cx = h.x - dr.off.x; dr.cy = h.y - dr.off.y;
+  dr.g.style.left = `${dr.cx}px`;
+  dr.g.style.top = `${dr.cy}px`;
+  dr.g.style.setProperty('--r', `${dr.r}deg`);
+  const ziel = zielBei(dr.cx, dr.cy, dr.art);
+  document.querySelectorAll('#buch .ziel').forEach(e => { if (e !== ziel) e.classList.remove('ziel'); });
+  if (ziel) ziel.classList.add('ziel');
+}
+/* Wohin würde der Sticker jetzt geklebt? Eine Seite (nicht der Umschlag) – oder zurück in den Stapel */
+function zielBei(x, y, art) {
+  for (const e of document.elementsFromPoint(x, y)) {
+    if (e.closest('#tray')) return art === 'zug' ? document.getElementById('tray') : null;
+    const p = e.closest('#book .spread .page[data-p]');
+    if (p && +p.dataset.p > 0) return p;
+  }
+  return null;
+}
+function buchLos(e) {
+  if (view.name !== 'buch') return;
+  if (BK.pend && e.pointerId === BK.pend.id) BK.pend = null;          // nur getippt: das macht »click«
+  const sw = BK.swipe;
+  if (sw && e.pointerId === sw.id) {
+    BK.swipe = null;
+    const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
+    if (e.type === 'pointerup' && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.2) blaettern(dx < 0 ? 1 : -1);
+  }
+  const dr = BK.drag;
+  if (!dr || !dr.ptr.has(e.pointerId)) return;
+  dr.ptr.delete(e.pointerId);
+  dr.w0 = null;
+  if (e.pointerId === dr.haupt && dr.ptr.size) {      // der erste Finger ist weg: der andere zieht weiter
+    const [id, p] = [...dr.ptr.entries()][0];
+    dr.haupt = id; dr.off = { x: p.x - dr.cx, y: p.y - dr.cy };
+  }
+  if (!dr.ptr.size) ziehEnde(e.type === 'pointercancel');
+}
+window.addEventListener('pointerup', buchLos);
+window.addEventListener('pointercancel', buchLos);
+function ziehEnde(abbruch) {
+  const dr = BK.drag;
+  BK.drag = null;
+  document.querySelectorAll('#buch .ziel').forEach(e => e.classList.remove('ziel'));
+  const ziel = abbruch ? null : zielBei(dr.cx, dr.cy, dr.art);
+  dr.g.remove();
+  if (ziel && ziel.dataset.p) {
+    const r = ziel.getBoundingClientRect(), fit = v => Math.min(94, Math.max(6, v));
+    einkleben(dr.s, +ziel.dataset.p, fit((dr.cx - r.left) / r.width * 100), fit((dr.cy - r.top) / r.height * 100), dr.r, dr.art === 'zug' ? dr.k : null);
+  } else if (ziel && dr.art === 'zug') abloesen(dr.k, true);         // in den Stapel gezogen = abgelöst
+  else {                                                               // daneben: alles bleibt, wie es war
+    dr.el.style.visibility = '';
+    dr.el.classList.remove('weg');
+    sfx.tap();
+  }
+}
+window.addEventListener('resize', () => { if (view.name === 'buch' && !BK.busy && !BK.drag) zeichneBuch(); });
+
 /* ---------------------------------------------------------- Einstellungen */
 let sheetOpen = null;
 function openSheet(nameOf, html) {
@@ -1423,6 +1797,14 @@ function onClick(e) {
       openSheet('quit', confirmHTML('Spiel beenden?', 'Dann gibt es für dieses Spiel keinen Sticker.', 'Beenden', 'gquit-yes'));
       break;
     case 'gquit-yes': stopGame(); nav('spiele'); break;
+    case 'buch': sfx.tap(); oeffneBuch(); break;
+    case 'buch-zu': sfx.tap(); nav(BK.from); break;
+    case 'blatt': blaettern(+b.dataset.d); break;
+    case 'buch-auf': blaettern(1); break;
+    case 'tray-st': antippenEinkleben(b.dataset.s); break;
+    case 'pst': sfx.tap(); waehle(BK.sel === +b.dataset.k ? null : +b.dataset.k); break;
+    case 'st-rot': drehen(+b.dataset.d); break;
+    case 'st-weg': if (BK.sel != null) abloesen(BK.sel); break;
     case 'toggle': {
       const key = b.dataset.key, val = !S.settings[key];
       S.settings[key] = val; save(); sfx.tap();
@@ -1438,10 +1820,10 @@ function onClick(e) {
     }
     case 'test-sound': sfx.right(3); setTimeout(() => Sound.say(['bruellen', { pause: 150 }, 'hallo_01']), 350); break;
     case 'reset':
-      openSheet('reset', confirmHTML('Alles zurücksetzen?', 'Alle Sterne, alle Spiel-Rekorde und alle Sticker im Album werden gelöscht. Das lässt sich nicht rückgängig machen.', 'Zurücksetzen', 'reset-yes'));
+      openSheet('reset', confirmHTML('Alles zurücksetzen?', 'Alle Sterne, alle Spiel-Rekorde, alle Sticker im Album und das Sammelbuch werden gelöscht. Das lässt sich nicht rückgängig machen.', 'Zurücksetzen', 'reset-yes'));
       break;
     case 'reset-yes':
-      S.stufen = {}; S.stickers = []; S.spiele = {}; S.rounds = 0; save();
+      S.stufen = {}; S.stickers = []; S.spiele = {}; S.buch = buchLaden(null); S.rounds = 0; save();
       closeSheet(true); nav('home', {}, false);
       break;
     case 'hint-close': S.hintClosed = true; save(); refreshInstall(); break;
@@ -1461,6 +1843,13 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target && e.target.tagName === 'INPUT') return;
   if (e.key === 'Escape' && sheetOpen) { closeSheet(); e.preventDefault(); return; }
+  if (view.name === 'buch' && !sheetOpen) {
+    if (e.key === 'ArrowRight') { blaettern(1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { blaettern(-1); e.preventDefault(); }
+    else if (e.key === 'Escape') waehle(null);
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && BK.sel != null) { abloesen(BK.sel); e.preventDefault(); }
+    return;
+  }
   if (view.name === 'mauer' && G && !sheetOpen) {
     if (/^[0-9]$/.test(e.key) && S.settings.answer === 'tippen') { mauerType(+e.key); e.preventDefault(); }
     else if (e.key === 'Backspace') { mauerDel(); e.preventDefault(); }
@@ -1486,7 +1875,7 @@ if ('serviceWorker' in navigator && window.BUILD !== 'dev' && (location.protocol
   navigator.serviceWorker.register('sw.js').catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController) return;          // erster Besuch: nichts neu laden
-    if (['quiz', 'result', 'spielende', ...GAME_VIEWS].includes(view.name)) reloadPending = true; else location.reload();
+    if (['quiz', 'result', 'spielende', 'buch', ...GAME_VIEWS].includes(view.name)) reloadPending = true; else location.reload();
   });
 }
 })();
