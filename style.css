@@ -629,7 +629,7 @@ body[data-view="buch"] .screen.buch {
 .tray-kopf span { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
 .tray-row { display: flex; gap: 8px; padding: 2px 2px 4px; overflow-x: auto; overscroll-behavior-x: contain; touch-action: pan-x; }
 .tray-st { flex: none; display: grid; place-items: center; width: 76px; height: 76px; border-radius: 14px; background: var(--bg); touch-action: pan-x; transition: opacity .2s; }
-.tray-st img { width: 90%; height: 90%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+.tray-st img { width: 68px; height: 68px; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
 .tray-st.weg { opacity: .3; }
 .tray-leer { margin: 8px; text-align: center; font-size: 15px; font-weight: 700; color: var(--ink-soft); }
 .st-tools { position: fixed; z-index: 35; display: flex; gap: 6px; padding: 6px; border-radius: 18px; background: var(--card); box-shadow: 0 8px 22px rgba(40, 25, 5, .25); }
@@ -641,6 +641,7 @@ body[data-view="buch"] .screen.buch {
   .buch .icon-btn { width: 44px; height: 44px; }
   .tray-kopf { display: none; }
   .tray-st { width: 62px; height: 62px; }
+  .tray-st img { width: 55px; height: 55px; }
 }
 
 /* ------------------------------------------------------------ Blatt (Einstellungen, Sticker) */
