@@ -3,6 +3,7 @@
 (() => {
 'use strict';
 const R = window.Rechnen;
+const SP = window.Spiele;
 
 /* ================================================================ Sticker
    Reihenfolge = Album. Für jede fertige Runde gibt es einen zufälligen neuen; die Krone kommt als letzter. */
@@ -16,8 +17,32 @@ const STICKERS = [
   ['schlitten', 'Tiko fährt Schlitten'], ['sterne', 'Tiko zählt Sterne'], ['musik', 'Tiko macht Musik'],
   ['gipfel', 'Tiko auf dem Gipfel'], ['detektiv', 'Tiko, der Detektiv'], ['krone', 'Tiko, der Rechenkönig'],
 ];
-const STICKER = Object.fromEntries(STICKERS);
 const LAST = 'krone';
+const MAIN = new Set(STICKERS.map(s => s[0]));
+
+/* ================================================================ Spiele
+   Jedes fertige Spiel gibt einen der 4 Sticker dieses Spiels (zweite Album-Seite). Die Aufgaben kommen aus spiele.js. */
+const SPIELE = [
+  { id: 'mauer', name: 'Zahlenmauer', kurz: 'Mauer', pose: 'tiko_bauen', info: 'Zwei Steine nebeneinander geben zusammen den Stein darüber.',
+    levels: { leicht: 'Kleine Mauer, nur Plus', mittel: 'Plus und Minus', schwer: 'Grosse Mauer' },
+    stickers: [['mauer_bauen', 'Tiko baut eine Mauer'], ['mauer_burg', 'Tiko auf der Burg'], ['mauer_turm', 'Tiko baut einen Turm'],
+      ['mauer_sandburg', 'Tiko baut eine Sandburg']] },
+  { id: 'schatz', name: 'Schatzsuche', kurz: 'Schatz', pose: 'tiko_schatz', info: 'Finde die Zahlen im Hunderterfeld – dann siehst du den Schatz.',
+    levels: { leicht: 'Zahlen finden', mittel: 'Plus und minus 1, 2, 10, 20', schwer: 'Ohne Zahlen im Feld' },
+    stickers: [['schatz_karte', 'Tiko und die Schatzkarte'], ['schatz_kiste', 'Tiko findet den Schatz'], ['schatz_schaufel', 'Tiko gräbt'],
+      ['schatz_kompass', 'Tiko, der Entdecker']] },
+  { id: 'fische', name: 'Fische fangen', kurz: 'Fisch', pose: 'tiko_fischen', info: 'Tippe auf den Fisch mit der richtigen Lösung.',
+    levels: { leicht: 'Wie Stufe 1 bis 4', mittel: 'Wie Stufe 3 bis 7', schwer: 'Wie Stufe 5 bis 9' },
+    stickers: [['fisch_netz', 'Tiko fängt einen Fisch'], ['fisch_boot', 'Tiko im Ruderboot'], ['fisch_tauchen', 'Tiko taucht'],
+      ['fisch_steg', 'Tiko am Steg']] },
+];
+const SPIEL = Object.fromEntries(SPIELE.map(g => [g.id, g]));
+const GAME_VIEWS = ['mauer', 'schatz', 'fische'];
+const LEVEL_NAME = { leicht: 'Leicht', mittel: 'Mittel', schwer: 'Schwer' };
+const GAME_STICKERS = SPIELE.flatMap(g => g.stickers);
+const STICKER = Object.fromEntries([...STICKERS, ...GAME_STICKERS]);
+const ALL = STICKERS.length + GAME_STICKERS.length;
+const SCHATZBILDER = ['insel', 'hoehle', 'berg', 'meer'];
 const img = name => `img/${name}.webp`;
 
 /* ================================================================ Speicher */
@@ -33,8 +58,10 @@ function load() {
     settings: Object.assign({}, DEFAULTS, d.settings || {}),
     stufen: d.stufen && typeof d.stufen === 'object' ? d.stufen : {},      // n -> { best: 0–3, rounds }
     stickers: Array.isArray(d.stickers) ? d.stickers.filter(s => STICKER[s]) : [],
+    spiele: d.spiele && typeof d.spiele === 'object' ? d.spiele : {},       // id -> { level, best: { leicht: 0–3, … }, games, pic }
     rounds: d.rounds || 0,
     albumSeen: !!d.albumSeen,
+    spieleSeen: !!d.spieleSeen,
     hintClosed: !!d.hintClosed,
     installed: !!d.installed,
   };
@@ -47,6 +74,14 @@ function recommended() {
   return 10;
 }
 const name = () => (S.settings.name || '').trim();
+function gs(id) {
+  const g = S.spiele[id] = Object.assign({ level: 'leicht', best: {}, games: 0 }, S.spiele[id]);
+  if (!SP.LEVELS.includes(g.level)) g.level = 'leicht';
+  return g;
+}
+const haveMain = () => S.stickers.filter(s => MAIN.has(s)).length;
+const haveOf = list => list.filter(([s]) => S.stickers.includes(s)).length;
+const gamesPlayed = () => SPIELE.reduce((n, g) => n + ((S.spiele[g.id] && S.spiele[g.id].games) || 0), 0);
 
 /* ================================================================== Icons */
 const I = p => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -63,6 +98,7 @@ const ICON = {
   share: I('<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'),
   install: I('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>'),
   album: I('<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 3v18"/><circle cx="14" cy="10" r="2.6"/><path d="M11 16.5c.8-1.6 1.8-2.4 3-2.4s2.2.8 3 2.4"/>'),
+  bucket: I('<path d="M4.5 9h15l-1.7 10.3a2 2 0 0 1-2 1.7H8.2a2 2 0 0 1-2-1.7z"/><path d="M6.5 9c0-5 11-5 11 0"/>'),
 };
 const PAW = `<svg class="paw" viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="21.5" rx="7.2" ry="6.2"/><ellipse cx="7.2" cy="13.6" rx="3.1" ry="3.8" transform="rotate(-18 7.2 13.6)"/><ellipse cx="12.6" cy="8.2" rx="3.1" ry="4" transform="rotate(-6 12.6 8.2)"/><ellipse cx="19.4" cy="8.2" rx="3.1" ry="4" transform="rotate(6 19.4 8.2)"/><ellipse cx="24.8" cy="13.6" rx="3.1" ry="3.8" transform="rotate(18 24.8 13.6)"/></svg>`;
 const STAR = '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9z"/></svg>';
@@ -246,6 +282,7 @@ const fxRoot = document.getElementById('fx');
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let view = { name: 'home' };
 let Q = null;            // laufende Runde
+let G = null;            // laufendes Spiel
 let reloadPending = false;
 let timer = null;        // automatisch weiter nach »richtig«
 
@@ -253,6 +290,7 @@ function nav(name, params = {}, push = true) {
   closeSheet(true);
   clearTimeout(timer);
   if (view.name === 'quiz' && name !== 'quiz' && name !== 'result') { Q = null; Sound.stop(); }
+  if (GAME_VIEWS.includes(view.name) && !GAME_VIEWS.includes(name)) stopGame();
   view = Object.assign({ name }, params);
   if (push) { try { history.pushState({ name }, ''); } catch (e) { /* file:// */ } }
   render();
@@ -263,7 +301,8 @@ window.addEventListener('popstate', e => {
   const st = e.state || { name: 'home' };
   clearTimeout(timer);
   if (view.name === 'quiz' || view.name === 'result') { Q = null; Sound.stop(); }
-  view = st.name === 'album' ? { name: 'album' } : { name: 'home' };
+  stopGame();
+  view = ['album', 'spiele'].includes(st.name) ? { name: st.name } : { name: 'home' };
   closeSheet(true);
   render();
 });
@@ -274,6 +313,11 @@ function render() {
   else if (view.name === 'album') app.innerHTML = albumHTML();
   else if (view.name === 'quiz') { app.innerHTML = quizHTML(); showTask(); }
   else if (view.name === 'result') app.innerHTML = resultHTML(view.res);
+  else if (view.name === 'spiele') app.innerHTML = spieleHTML();
+  else if (view.name === 'mauer') { app.innerHTML = mauerHTML(); mauerShow(); }
+  else if (view.name === 'schatz') { app.innerHTML = schatzHTML(); schatzShow(); }
+  else if (view.name === 'fische') { app.innerHTML = fischeHTML(); fischeSetup(); }
+  else if (view.name === 'spielende') app.innerHTML = spielendeHTML(view.res);
 }
 
 /* ------------------------------------------------------------------ Start */
@@ -283,7 +327,7 @@ function homeHTML() {
     <header class="bar">
       <button class="brand" data-act="hello" aria-label="Rechentiger – Tiko sagt Hallo"><img src="icons/favicon.png" alt=""><span>Rechentiger</span></button>
       <div class="bar-right">
-        <button class="pill" data-act="album" aria-label="Tiger-Album: ${S.stickers.length} von ${STICKERS.length} Stickern">${ICON.album}<span class="pill-t">Album</span><b>${S.stickers.length}/${STICKERS.length}</b></button>
+        <button class="pill" data-act="album" aria-label="Tiger-Album: ${S.stickers.length} von ${ALL} Stickern">${ICON.album}<span class="pill-t">Album</span><b>${S.stickers.length}/${ALL}</b></button>
         <button class="icon-btn" data-act="settings" aria-label="Einstellungen">${ICON.gear}</button>
       </div>
     </header>
@@ -295,6 +339,11 @@ function homeHTML() {
         <button class="btn primary big" data-act="start" data-stufe="${rec}">${PAW}<span><b>Los geht’s!</b><small>Stufe ${rec} · ${st.name}</small></span></button>
       </div>
     </section>
+    <button class="games-banner" data-act="spiele">
+      <span class="gb-pics" aria-hidden="true">${SPIELE.map(g => `<img src="${img(g.pose)}" alt="">`).join('')}</span>
+      <span class="gb-text"><b>Tikos Spiele</b><small>${SPIELE.map(g => g.name).join(' · ')}</small></span>
+      ${ICON.next}
+    </button>
     <h2 class="path-title"><span>Der Dschungelpfad</span><small>Tippe auf eine Stufe</small></h2>
     <section class="path" aria-label="Die Stufen">
       ${R.STUFEN.map(s => stoneHTML(s, rec)).join('')}
@@ -440,11 +489,12 @@ function renderPad(state = 'input') {
     return;
   }
   pad.className = 'pad pad-keys';
-  pad.innerHTML = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button class="key" data-act="key" data-v="${k}">${k}</button>`).join('') +
-    `<button class="key fn" data-act="del" aria-label="Löschen">${ICON.del}</button>` +
-    `<button class="key" data-act="key" data-v="0">0</button>` +
-    `<button class="key ok" data-act="ok" aria-label="Fertig">${ICON.check}</button>`;
+  pad.innerHTML = keysHTML();
 }
+const keysHTML = () => [1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button class="key" data-act="key" data-v="${k}">${k}</button>`).join('') +
+  `<button class="key fn" data-act="del" aria-label="Löschen">${ICON.del}</button>` +
+  `<button class="key" data-act="key" data-v="0">0</button>` +
+  `<button class="key ok" data-act="ok" aria-label="Fertig">${ICON.check}</button>`;
 function updateSlot(state = '') {
   const slot = document.getElementById('slot');
   if (!slot) return;
@@ -639,7 +689,7 @@ function resultHTML(res) {
       <span class="ns-label">${res.sticker === LAST ? 'Der letzte Sticker!' : 'Neuer Sticker!'}</span>
       <img src="${img('sticker_' + res.sticker)}" alt="">
       <span class="ns-title">${STICKER[res.sticker]}</span>
-      <span class="ns-count">${S.stickers.length} von ${STICKERS.length} im Album</span>
+      <span class="ns-count">${haveMain()} von ${STICKERS.length} im Album</span>
     </button>` : `<p class="all-done">Du hast alle ${STICKERS.length} Sticker gesammelt – du bist der Rechenkönig!</p>`}
     <div class="res-actions">
       ${nextStufe ? `<button class="btn primary big" data-act="start" data-stufe="${nextStufe}"><span><b>Nächste Stufe</b><small>Stufe ${nextStufe} · ${R.STUFEN[nextStufe - 1].name}</small></span>${ICON.next}</button>` : ''}
@@ -652,19 +702,587 @@ function resultHTML(res) {
 /* ------------------------------------------------------------------ Album */
 function albumHTML() {
   const have = new Set(S.stickers);
+  const card = (s, title, i) => `<button class="slotcard have" data-act="sticker" data-s="${s}" style="--r:${(i * 37 % 7) - 3}deg"><img src="${img('sticker_' + s)}" alt=""><span>${title}</span></button>`;
   return `<div class="screen album">
     <header class="bar">
       <button class="icon-btn" data-act="home" aria-label="Zurück">${ICON.back}</button>
       <h1 class="bar-title">Tiger-Album</h1>
-      <span class="count">${have.size}/${STICKERS.length}</span>
+      <span class="count">${have.size}/${ALL}</span>
     </header>
     <p class="album-intro">Für jede geschaffte Runde bekommst du einen neuen Sticker. Sammelst du alle ${STICKERS.length}?</p>
     <section class="album-grid">
-      ${STICKERS.map(([s, title], i) => have.has(s)
-        ? `<button class="slotcard have" data-act="sticker" data-s="${s}" style="--r:${(i * 37 % 7) - 3}deg"><img src="${img('sticker_' + s)}" alt=""><span>${title}</span></button>`
+      ${STICKERS.map(([s, title], i) => have.has(s) ? card(s, title, i)
         : `<div class="slotcard empty ${s === LAST ? 'last' : ''}">${s === LAST ? '<span class="crown">♛</span>' : PAW}<span>${s === LAST ? 'Ganz zum Schluss' : '?'}</span></div>`).join('')}
     </section>
+    <h2 class="album-sub"><span>Sticker aus Tikos Spielen</span><b>${haveOf(GAME_STICKERS)}/${GAME_STICKERS.length}</b></h2>
+    <p class="album-intro">Für jedes fertige Spiel gibt es einen Sticker aus diesem Spiel.</p>
+    <section class="album-grid">
+      ${SPIELE.flatMap(g => g.stickers.map(([s, title], i) => have.has(s) ? card(s, title, i + 1)
+        : `<button class="slotcard empty game" data-act="spiele">${PAW}<span>${g.name}</span></button>`)).join('')}
+    </section>
   </div>`;
+}
+
+/* ---------------------------------------------------------- Spiele: Auswahl */
+function spieleHTML() {
+  const n = haveOf(GAME_STICKERS);
+  return `<div class="screen spiele">
+    <header class="bar">
+      <button class="icon-btn" data-act="home" aria-label="Zurück">${ICON.back}</button>
+      <h1 class="bar-title">Tikos Spiele</h1>
+      <span class="count" aria-label="${n} von ${GAME_STICKERS.length} Spiel-Stickern">${n}/${GAME_STICKERS.length}</span>
+    </header>
+    <p class="album-intro">Wähle ein Spiel und wie schwer es sein soll. Für jedes fertige Spiel gibt es einen Sticker.</p>
+    <section class="games">${SPIELE.map(gameCardHTML).join('')}</section>
+  </div>`;
+}
+function gameCardHTML(g) {
+  const st = gs(g.id);
+  return `<article class="game-card">
+    <div class="gc-top">
+      <img class="gc-tiko" src="${img(g.pose)}" alt="">
+      <div class="gc-text"><h2>${g.name}</h2><p>${g.info}</p></div>
+    </div>
+    <div class="seg lv" role="radiogroup" aria-label="Wie schwer?">${SP.LEVELS.map(l =>
+      `<button role="radio" aria-checked="${st.level === l}" data-act="level" data-g="${g.id}" data-v="${l}"><span>${LEVEL_NAME[l]}</span>${starsHTML(st.best[l] || 0, 'mini')}</button>`).join('')}</div>
+    <button class="btn primary big" data-act="spiel" data-g="${g.id}">${PAW}<span><b>Spielen</b><small>${g.levels[st.level]}</small></span></button>
+    <div class="gc-stickers">${g.stickers.map(([s, t]) => S.stickers.includes(s)
+      ? `<img src="${img('sticker_' + s)}" alt="${t}">` : `<span class="gc-empty" aria-hidden="true">${PAW}</span>`).join('')}</div>
+  </article>`;
+}
+
+/* ---------------------------------------------------------- Spiele: gemeinsam */
+function startGame(id, level) {
+  const st = gs(id);
+  if (SP.LEVELS.includes(level)) st.level = level;
+  stopGame();
+  G = { g: id, level: st.level, results: [], streak: 0, tries: 0, timers: [], locked: false };
+  const voices = ['los_01', 'los_02', 'los_03', 'lob_01', 'lob_02', 'lob_03', 'lob_04', 'fast_01', 'fast_02', 'loesung', `${id}_start`];
+  if (id === 'mauer') {
+    G.walls = SP.mauerSpiel(G.level); G.w = 0;
+    setupWall();
+    voices.push('mauer_tipp_plus', 'mauer_tipp_minus', 'mauer_weiter', 'mauer_fertig', ...G.walls.flatMap(w => w.v.flat().map(v => `z_${v}`)));
+  } else if (id === 'schatz') {
+    G.s = SP.schatz(G.level); G.i = 0; G.open = new Set();
+    const pics = SCHATZBILDER.filter(p => p !== st.pic);
+    G.pic = st.pic = pics[Math.floor(Math.random() * pics.length)];
+    voices.push('das_ist', 'hier_ist_es', 'schatz_fertig', ...G.s.aufgaben.flatMap(a => a.voice));
+  } else {
+    G.list = SP.fischRunde(G.level, S.settings.ops); G.i = 0; G.caught = 0;
+    voices.push('fische_fertig', ...G.list.flatMap(t => [...R.voice(t), `z_${R.answerOf(t)}`]));
+  }
+  save();
+  Sound.preload(voices);
+  nav(id);
+  say([st.games < 2 ? `${id}_start` : line.los(), { pause: 250 }]);      // die Regel nur die ersten zwei Male
+  if (id === 'schatz') say(G.s.aufgaben[0].voice, true);
+  if (id === 'fische' && S.settings.readTasks) say(R.voice(G.list[0]), true);
+}
+function stopGame() {
+  if (!G) return;
+  G.timers.forEach(clearTimeout);
+  cancelAnimationFrame(G.raf);
+  G = null;
+  Sound.stop();
+}
+/* Später etwas tun – aber nur, wenn das Spiel noch läuft */
+function later(fn, ms) {
+  const g = G;
+  if (g) g.timers.push(setTimeout(() => { if (G === g) fn(); }, ms));
+}
+function scoreGame(first) {
+  G.results.push({ first });
+  G.streak = first ? G.streak + 1 : 0;
+  return G.streak;
+}
+function gamePaws(total) {
+  const el = document.getElementById('paws');
+  if (!el || !G) return;
+  el.innerHTML = Array.from({ length: total }, (_, i) => {
+    const r = G.results[i];
+    return `<span class="pawdot ${r ? (r.first ? 'ok' : 'help') : i === G.results.length ? 'now' : ''}">${PAW}</span>`;
+  }).join('');
+}
+function gameFb(cls, text) {
+  const fb = document.getElementById('fb');
+  if (!fb) return;
+  fb.className = `fb ${cls}`;
+  fb.innerHTML = text;
+}
+function finishGame() {
+  if (!G) return;
+  const { g, level } = G, total = G.results.length, firstRight = G.results.filter(r => r.first).length;
+  const stars = R.stars(firstRight, total), st = gs(g);
+  const improved = stars > (st.best[level] || 0);
+  st.best[level] = Math.max(st.best[level] || 0, stars);
+  st.games = (st.games || 0) + 1;
+  const missing = SPIEL[g].stickers.map(s => s[0]).filter(s => !S.stickers.includes(s));
+  const sticker = missing.length ? missing[Math.floor(Math.random() * missing.length)] : null;
+  if (sticker) S.stickers.push(sticker);
+  save();
+  stopGame();
+  nav('spielende', { res: { g, level, stars, firstRight, total, improved, sticker } });
+  sfx.done();
+  if (!reduced()) confetti(50);
+  say([stars === 3 ? 'perfekt' : { mauer: 'mauer_fertig', fische: 'fische_fertig' }[g] || line.fertig(), { pause: 300 }]);
+  if (sticker) say('sticker', true);
+  else if (haveOf(GAME_STICKERS) < GAME_STICKERS.length) say('spiel_alle', true);
+}
+function spielendeHTML(res) {
+  const g = SPIEL[res.g], li = SP.LEVELS.indexOf(res.level);
+  const harder = li < 2 && res.stars >= 2 ? SP.LEVELS[li + 1] : null;
+  const msg = res.stars === 3 ? 'Alles auf Anhieb richtig!' : res.stars === 2 ? 'Super gespielt!' : res.stars === 1 ? 'Gut gemacht!' : 'Geschafft! Übung macht den Tiger stark.';
+  const what = { mauer: 'Steinen beim ersten Mal richtig', schatz: 'Zahlen beim ersten Mal gefunden', fische: 'Fischen beim ersten Mal gefangen' }[res.g];
+  const rest = haveOf(GAME_STICKERS) < GAME_STICKERS.length;
+  return `<div class="screen result">
+    <div class="res-top">
+      <img class="res-tiko" src="${img('tiko_jubel')}" alt="Tiko jubelt">
+      <div class="res-text">
+        <h1>${msg}</h1>
+        <p>${g.name} · ${LEVEL_NAME[res.level]}</p>
+        ${starsHTML(res.stars, 'big')}
+        <p class="res-count"><b>${res.firstRight}</b> von ${res.total} ${what}${res.improved && res.stars ? ' – neuer Rekord!' : ''}</p>
+      </div>
+    </div>
+    ${res.sticker ? `<button class="new-sticker" data-act="album">
+      <span class="rays" aria-hidden="true"></span>
+      <span class="ns-label">Neuer Sticker!</span>
+      <img src="${img('sticker_' + res.sticker)}" alt="">
+      <span class="ns-title">${STICKER[res.sticker]}</span>
+      <span class="ns-count">${haveOf(g.stickers)} von ${g.stickers.length} ${g.kurz}-Stickern</span>
+    </button>` : `<p class="all-done">Du hast alle ${g.kurz}-Sticker!${rest ? ' Probier doch ein anderes Spiel.' : ' Und alle Spiel-Sticker!'}</p>`}
+    <div class="res-actions">
+      ${harder ? `<button class="btn primary big" data-act="spiel" data-g="${res.g}" data-level="${harder}"><span><b>Schwerer</b><small>${g.name} · ${LEVEL_NAME[harder]}</small></span>${ICON.next}</button>` : ''}
+      <button class="btn ${harder ? '' : 'primary big'}" data-act="spiel" data-g="${res.g}" data-level="${res.level}">${ICON.again}<span>Nochmal</span></button>
+      <button class="btn" data-act="spiele">${PAW}<span>Andere Spiele</span></button>
+    </div>
+  </div>`;
+}
+const gameHeader = right => `<header class="qbar">
+  <button class="icon-btn" data-act="gquit" aria-label="Spiel beenden">${ICON.close}</button>
+  <div class="paws" id="paws" aria-label="Fortschritt"></div>
+  ${right}
+</header>`;
+const replayBtn = `<button class="icon-btn" data-act="greplay" aria-label="Nochmal vorlesen">${ICON.speaker}</button>`;
+
+/* ---------------------------------------------------------- Spiele: Zahlenmauer */
+function setupWall() {
+  const w = G.walls[G.w];
+  Object.assign(G, { known: new Set(w.given), done: new Map(), tries: {}, hinted: {}, choiceSets: {}, input: '', wrongK: null, src: null });
+  G.sel = SP.mauerNaechster(w, G.known);
+}
+const wallFull = w => G.known.size === w.n * (w.n + 1) / 2;
+const mauerTotal = () => G.walls.reduce((s, w) => s + w.n * (w.n + 1) / 2 - w.given.length, 0);
+function mauerHTML() {
+  return `<div class="screen game mauer" id="game">
+    ${gameHeader(`<button class="icon-btn tipp" data-act="mhint" id="hint-btn" aria-label="Tipp">${ICON.bulb}</button>`)}
+    <div class="qmain">
+      <div class="qtiko"><img id="tiko" src="${img('tiko_bauen')}" alt=""></div>
+      <section class="qcard mcard">
+        <div class="qtag">Mauer <span id="wall-n"></span> von ${G.walls.length} · ${LEVEL_NAME[G.level]}</div>
+        <div class="wall" id="wall"></div>
+        <div class="fb" id="fb" aria-live="polite"></div>
+        <div class="hint" id="hint" hidden></div>
+      </section>
+    </div>
+    <div class="pad" id="pad"></div>
+  </div>`;
+}
+function mauerShow() {
+  document.getElementById('wall-n').textContent = G.w + 1;
+  gameFb('', '');
+  clearMauerHint();
+  setTiko('tiko_bauen');
+  drawWall();
+  mauerPad();
+  gamePaws(mauerTotal());
+}
+function drawWall() {
+  const w = G.walls[G.w], el = document.getElementById('wall');
+  if (!el) return;
+  el.style.setProperty('--n', w.n);
+  let html = '';
+  for (let r = w.n - 1; r >= 0; r--) html += `<div class="wrow">${w.v[r].map((v, i) => brickHTML(w, SP.key(r, i), v)).join('')}</div>`;
+  el.innerHTML = html;
+}
+function brickHTML(w, k, v) {
+  const src = G.src && G.src.includes(k) ? ' src' : '';
+  if (w.given.includes(k)) return `<span class="brick given${src}" data-k="${k}">${v}</span>`;
+  if (G.done.has(k)) return `<span class="brick ${G.done.get(k)}${src}" data-k="${k}">${v}</span>`;
+  if (G.sel !== k) return `<button class="brick empty" data-act="brick" data-k="${k}" aria-label="Leerer Stein"></button>`;
+  return `<button class="brick empty sel${G.wrongK === k ? ' wrong' : ''}${G.input ? ' filled' : ''}" data-act="brick" data-k="${k}" aria-label="Ausgewählter Stein">${G.input ? esc(G.input) : '<i class="caret"></i>'}</button>`;
+}
+const brickEl = k => document.querySelector(`#wall [data-k="${k}"]`);
+function mauerPad() {
+  const pad = document.getElementById('pad');
+  if (!pad || !G.sel) return;
+  if (S.settings.answer === 'waehlen') {
+    const ans = SP.val(G.walls[G.w].v, G.sel);
+    const ch = G.choiceSets[G.sel] || (G.choiceSets[G.sel] = R.choices({ c: ans }));
+    pad.className = 'pad pad-choices';
+    pad.innerHTML = ch.map(v => `<button class="key choice" data-act="choice" data-v="${v}">${v}</button>`).join('');
+    return;
+  }
+  pad.className = 'pad pad-keys';
+  pad.innerHTML = keysHTML();
+}
+function mauerSelect(k) {
+  if (!G || G.locked || G.sel === k || G.done.has(k)) return;
+  sfx.tap();
+  Object.assign(G, { sel: k, input: '', wrongK: null });
+  clearMauerHint();
+  drawWall();
+  mauerPad();
+}
+function mauerType(d) {
+  if (!G || G.locked || !G.sel) return;
+  if (G.input.length >= 3 || G.input === '0' || +(G.input + d) > 100) { nope(brickEl(G.sel)); return; }
+  G.input += String(d);
+  sfx.tap();
+  drawWall();
+}
+function mauerDel() {
+  if (!G || G.locked || !G.sel || !G.input) return;
+  G.input = G.input.slice(0, -1);
+  sfx.tap();
+  drawWall();
+}
+function mauerSubmit(v) {
+  if (!G || G.locked || !G.sel) return;
+  if (v == null) {
+    if (!G.input) { nope(brickEl(G.sel)); return; }
+    v = +G.input;
+  } else { G.input = String(v); drawWall(); }
+  const k = G.sel;
+  if (v === SP.val(G.walls[G.w].v, k)) mauerRight(k, v); else mauerWrong(k, v);
+}
+function mauerRight(k, v) {
+  const streak = scoreGame(!G.tries[k] && !G.hinted[k]);
+  G.locked = true;
+  G.known.add(k); G.done.set(k, 'right');
+  Object.assign(G, { sel: null, input: '', src: null });
+  markChoice(v, 'right');
+  drawWall();
+  gamePaws(mauerTotal());
+  sfx.right(streak);
+  setTiko('tiko_jubel');
+  if (!reduced()) burst(brickEl(k), 10);
+  gameFb('good', pickText(['Super!', 'Genau!', 'Richtig!', 'Tigerstark!', 'Gut gebaut!']));
+  if (wallFull(G.walls[G.w])) return wallDone();
+  say(line.lob());
+  later(nextBrick, 800);
+}
+function mauerWrong(k, v) {
+  G.tries[k] = (G.tries[k] || 0) + 1;
+  G.streak = 0;
+  sfx.wrong();
+  markChoice(v, 'wrong');
+  const cb = document.querySelector(`#pad [data-act="choice"][data-v="${v}"]`);
+  if (cb) cb.disabled = true;
+  setTiko('tiko_mut');
+  G.locked = true;
+  if (G.tries[k] === 1) {
+    G.wrongK = k;
+    drawWall();
+    nope(brickEl(k));
+    gameFb('soft', 'Fast! Versuch es nochmal.');
+    say(line.fast());
+    later(() => { Object.assign(G, { locked: false, wrongK: null, input: '' }); drawWall(); pulse(document.getElementById('hint-btn')); }, 900);
+    return;
+  }
+  // zweimal falsch: Tiko zeigt die Lösung und die Rechnung dazu
+  const w = G.walls[G.w], h = SP.mauerHilfe(w, G.known, k), ans = SP.val(w.v, k);
+  scoreGame(false);
+  G.known.add(k); G.done.set(k, 'solution');
+  Object.assign(G, { sel: null, input: '', wrongK: null });
+  if (h) showMauerHint(h, true);
+  drawWall();
+  gamePaws(mauerTotal());
+  gameFb('soft', `Die Lösung ist <b>${ans}</b>.`);
+  say(['loesung', `z_${ans}`]);
+  if (wallFull(w)) later(wallDone, 2200); else later(nextBrick, 2600);
+}
+function nextBrick() {
+  Object.assign(G, { locked: false, sel: SP.mauerNaechster(G.walls[G.w], G.known), input: '', wrongK: null });
+  clearMauerHint();
+  setTiko('tiko_bauen');
+  gameFb('', '');
+  drawWall();
+  mauerPad();
+}
+function wallDone() {
+  G.locked = true;
+  document.getElementById('wall').classList.add('done');
+  setTiko('tiko_jubel');
+  gameFb('good', 'Die Mauer steht!');
+  sfx.sparkle();
+  if (G.w === G.walls.length - 1) { later(finishGame, 1500); return; }
+  say('mauer_weiter');
+  later(() => { G.w++; setupWall(); G.locked = false; mauerShow(); }, 2200);
+}
+/* Tipp: welche zwei Steine, welche Rechnung. Geht der gewählte Stein noch nicht, nimmt Tiko einen, der geht. */
+function mauerHint() {
+  if (!G || G.locked) return;
+  const w = G.walls[G.w];
+  let k = G.sel, h = k && SP.mauerHilfe(w, G.known, k);
+  if (!h) {
+    k = SP.mauerNaechster(w, G.known);
+    if (!k) return;
+    Object.assign(G, { sel: k, input: '' });
+    h = SP.mauerHilfe(w, G.known, k);
+    mauerPad();
+  }
+  G.hinted[k] = true;
+  showMauerHint(h, false);
+  drawWall();
+  sfx.tap();
+  say(h.op === '+' ? 'mauer_tipp_plus' : 'mauer_tipp_minus');
+}
+function showMauerHint(h, solved) {
+  G.src = h.from;
+  const el = document.getElementById('hint');
+  el.innerHTML = `<p class="hint-note">${h.op === '+' ? 'Die zwei Steine darunter zusammen:' : 'Der Stein darüber minus der Stein daneben:'}</p>
+    <div class="step"><b>${h.a}</b><i>${h.op === '+' ? '+' : '−'}</i><b>${h.b}</b><i>=</i>${solved ? `<b>${h.c}</b>` : '<b class="q">?</b>'}</div>`;
+  el.hidden = false;
+  document.getElementById('game').classList.add('hinting');
+}
+function clearMauerHint() {
+  G.src = null;
+  const el = document.getElementById('hint');
+  if (el) { el.hidden = true; el.innerHTML = ''; }
+  document.getElementById('game').classList.remove('hinting');
+}
+
+/* ---------------------------------------------------------- Spiele: Schatzsuche
+   Unter den 100 Feldern liegt ein Schatzbild. Jede gefundene Zahl deckt ihr Puzzleteil auf. */
+function schatzHTML() {
+  const s = G.s;
+  let cells = '';
+  for (let n = 1; n <= 100; n++) {
+    const [r, c] = SP.pos(n), shown = !s.versteckt || SP.anchor(n);
+    // Wie im Zahlenbuch: die vier Fünferfelder abwechselnd gefärbt
+    cells += `<button class="cell ${(r < 5) === (c < 5) ? 'qa' : 'qb'}${shown && s.versteckt ? ' anchor' : ''}" data-act="cell" data-n="${n}" aria-label="${shown ? n : 'Feld'}"><span>${shown ? n : ''}</span></button>`;
+  }
+  return `<div class="screen game schatz" id="game">
+    ${gameHeader(replayBtn)}
+    <div class="smain">
+      <div class="sask">
+        <img class="stiko" id="tiko" src="${img('tiko_schatz')}" alt="">
+        <div class="sbubble"><span>Finde</span><b id="ask"></b></div>
+      </div>
+      <div class="field${s.versteckt ? ' versteckt' : ''}" id="field">
+        <img class="field-pic" src="${img('schatzbild_' + G.pic)}" alt="">
+        <div class="cells">${cells}</div>
+      </div>
+      <div class="fb" id="fb" aria-live="polite"></div>
+    </div>
+  </div>`;
+}
+const cellEl = n => document.querySelector(`#field [data-n="${n}"]`);
+function schatzShow() {
+  const ask = document.getElementById('ask');
+  ask.textContent = G.s.aufgaben[G.i].text;
+  ask.dataset.i = G.i;
+  G.open.forEach(n => cellEl(n).classList.add('open'));
+  gamePaws(G.s.ziele.length);
+}
+function schatzTap(n) {
+  if (!G || G.locked) return;
+  const a = G.s.aufgaben[G.i];
+  if (n === a.n) { schatzFound(G.tries === 0); return; }
+  G.tries++;
+  G.streak = 0;
+  sfx.wrong();
+  const el = cellEl(n);
+  el.classList.remove('peek'); void el.offsetWidth; el.classList.add('peek');      // zeigt kurz, welche Zahl das war
+  nope(el);
+  setTiko('tiko_mut');
+  if (G.tries === 1) {
+    gameFb('soft', `Das ist ${n}. Versuch es nochmal!`);
+    say(['das_ist', `z_${n}`]);
+    return;
+  }
+  // zweimal daneben: Tiko zeigt das Feld
+  G.locked = true;
+  gameFb('soft', `Das ist ${n}. Schau, hier ist ${a.n}!`);
+  say(['das_ist', `z_${n}`, { pause: 200 }, 'hier_ist_es']);
+  const t = cellEl(a.n);
+  t.classList.add('show');
+  t.firstChild.textContent = a.n;           // auch wenn die Zahlen versteckt sind
+  later(() => schatzFound(false), 2200);
+}
+function schatzFound(first) {
+  G.locked = true;
+  const streak = scoreGame(first), a = G.s.aufgaben[G.i], target = cellEl(a.n);
+  sfx.right(streak);
+  setTiko('tiko_jubel');
+  target.classList.remove('show');
+  if (!reduced()) burst(target, 10);
+  openTeil(G.i);
+  gamePaws(G.s.ziele.length);
+  gameFb('good', first ? pickText(['Super!', 'Gefunden!', 'Genau!', 'Tigerstark!']) : `Da ist ${a.n}!`);
+  if (first) say(line.lob());
+  if (G.i === G.s.ziele.length - 1) { later(schatzDone, 1300); return; }
+  later(() => {
+    Object.assign(G, { i: G.i + 1, tries: 0, locked: false });
+    setTiko('tiko_schatz');
+    gameFb('', '');
+    schatzShow();
+    say(G.s.aufgaben[G.i].voice);
+  }, 1500);
+}
+function openTeil(i) {
+  const [zr, zc] = SP.pos(G.s.ziele[i]);
+  for (let n = 1; n <= 100; n++) {
+    if (G.s.teil[n] !== i) continue;
+    const [r, c] = SP.pos(n), el = cellEl(n);
+    G.open.add(n);
+    el.style.transitionDelay = reduced() ? '0ms' : `${Math.round(Math.hypot(r - zr, c - zc) * 60)}ms`;
+    el.classList.add('open');
+  }
+}
+function schatzDone() {
+  setTiko('tiko_jubel');
+  document.getElementById('field').classList.add('done');
+  sfx.sparkle();
+  if (!reduced()) confetti(40);
+  say('schatz_fertig');
+  gameFb('good', `<span>Du hast den Schatz gefunden!</span><button class="btn primary" data-act="schatz-weiter" id="schatz-weiter"><span>Weiter</span>${ICON.next}</button>`);
+}
+
+/* ---------------------------------------------------------- Spiele: Fische fangen
+   4 Fische schwimmen in 4 Bahnen hin und her, jeder trägt eine Zahl. Bewegt wird mit requestAnimationFrame. */
+const FISH = 4;
+function fischeHTML() {
+  return `<div class="screen game fische" id="game">
+    ${gameHeader(replayBtn)}
+    <section class="fcard">
+      <img class="ftiko" id="tiko" src="${img('tiko_fischen')}" alt="">
+      <div class="task" id="task" aria-live="polite"></div>
+      <div class="bucket" id="bucket" aria-label="Gefangene Fische">${ICON.bucket}<b id="caught">0</b></div>
+    </section>
+    <div class="fb" id="fb" aria-live="polite"></div>
+    <div class="pond" id="pond">
+      <span class="lily l1"></span><span class="lily l2"></span><span class="lily l3"></span>
+      ${Array.from({ length: FISH }, (_, i) => `<button class="fish${i % 2 ? ' left' : ''}" data-act="fish" data-i="${i}"><img src="${img('fisch')}" alt=""><span class="fnum"></span></button>`).join('')}
+    </div>
+  </div>`;
+}
+function fischeSetup() {
+  const pond = document.getElementById('pond'), W = pond.clientWidth;
+  G.T = { leicht: 10, mittel: 9, schwer: 8 }[G.level] * (reduced() ? 3 : 1);      // Sekunden für einmal quer durch den Teich
+  G.fish = [...pond.querySelectorAll('.fish')].map((el, i) => ({ el, dir: i % 2 ? -1 : 1, rel: 0.8 + Math.random() * 0.4, state: 'swim', v: null, next: null }));
+  layoutFish();
+  G.fish.forEach(f => { f.x = Math.random() * Math.max(0, W - f.w); });
+  document.getElementById('caught').textContent = G.caught;
+  fischeTask();
+  G.last = 0;
+  G.raf = requestAnimationFrame(fischeTick);
+}
+function layoutFish() {
+  const pond = document.getElementById('pond');
+  if (!pond || !G || !G.fish) return;
+  const lane = pond.clientHeight / G.fish.length;
+  G.fish.forEach((f, i) => {
+    f.w = f.el.offsetWidth; f.h = f.el.offsetHeight;
+    f.el.style.top = `${Math.round(lane * i + Math.max(0, (lane - f.h) / 2))}px`;
+  });
+}
+window.addEventListener('resize', () => { if (G && G.g === 'fische') layoutFish(); });
+function fischeTick(ts) {
+  const pond = G && G.g === 'fische' && document.getElementById('pond');
+  if (!pond) return;
+  const dt = G.last ? Math.min(0.05, (ts - G.last) / 1000) : 0, W = pond.clientWidth;
+  G.last = ts;
+  for (const f of G.fish) {
+    if (f.state === 'caught') continue;
+    f.x += f.dir * (W / G.T) * f.rel * (f.state === 'flee' ? 4 : 1) * dt;
+    if (f.dir > 0 ? f.x > W + 8 : f.x < -f.w - 8) {        // hinten hinaus, vorne wieder herein
+      f.x = f.dir > 0 ? -f.w - 8 - Math.random() * 60 : W + 8 + Math.random() * 60;
+      if (f.state === 'flee') { f.state = 'swim'; if (f.next != null) setFishNum(f, f.next); }
+    }
+    f.el.style.transform = `translateX(${Math.round(f.x)}px)`;
+  }
+  G.raf = requestAnimationFrame(fischeTick);
+}
+function fischeTask() {
+  const t = G.list[G.i], nums = R.shuffle(t.fische.slice()), task = document.getElementById('task');
+  task.innerHTML = taskHTML(t);
+  task.dataset.i = G.i;
+  G.fish.forEach((f, i) => { if (f.state === 'flee') f.state = 'swim'; f.next = null; setFishNum(f, nums[i]); });
+  G.tries = 0;
+  gamePaws(G.list.length);
+}
+function setFishNum(f, v) {
+  f.v = v;
+  f.el.dataset.v = v;
+  f.el.querySelector('.fnum').textContent = v;
+  f.el.classList.remove('glow', 'flee', 'renew'); void f.el.offsetWidth;
+  if (!reduced()) f.el.classList.add('renew');
+}
+/* Ein falscher Fisch, der weggeschwommen ist, kommt mit einer neuen falschen Zahl zurück */
+function freshWrong(ans, used) {
+  const c = [1, 2, 10, 11, 9, 3, 20, 5].flatMap(d => [ans + d, ans - d]).filter(v => v >= 0 && v <= 100 && !used.includes(v) && v !== ans);
+  return pickText(c);
+}
+function fishTap(i) {
+  if (!G || G.locked || !G.fish) return;
+  const f = G.fish[i], ans = R.answerOf(G.list[G.i]);
+  if (!f || f.state !== 'swim') return;
+  if (f.v === ans) { fishCaught(f, ans); return; }
+  G.tries++;
+  G.streak = 0;
+  sfx.wrong();
+  f.state = 'flee';
+  f.el.classList.add('flee');
+  f.next = freshWrong(ans, G.fish.map(x => x.v));
+  setTiko('tiko_mut');
+  if (G.tries === 1) { gameFb('soft', 'Fast! Versuch es nochmal.'); say(line.fast()); return; }
+  // zweimal daneben: der richtige Fisch leuchtet
+  const right = G.fish.find(x => x.v === ans);
+  if (right) right.el.classList.add('glow');
+  gameFb('soft', `Die Lösung ist <b>${ans}</b>. Fang den leuchtenden Fisch!`);
+  say(['loesung', `z_${ans}`]);
+}
+function fishCaught(f, ans) {
+  G.locked = true;
+  const streak = scoreGame(G.tries === 0);
+  G.caught++;
+  sfx.right(streak);
+  setTiko('tiko_jubel');
+  const slot = document.getElementById('slot');
+  if (slot) { slot.className = 'slot right filled'; slot.textContent = ans; }
+  gameFb('good', pickText(['Gefangen!', 'Super!', 'Genau!', 'Tigerstark!']));
+  // der Fisch springt in den Eimer (als Kopie über allem, damit der Teichrand ihn nicht abschneidet)
+  const r = f.el.getBoundingClientRect(), b = document.getElementById('bucket').getBoundingClientRect();
+  if (!reduced()) {
+    const fly = document.createElement('img');
+    fly.src = img('fisch'); fly.className = 'fly-fish';
+    fly.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;--dx:${b.left + b.width / 2 - r.left - r.width / 2}px;--dy:${b.top + b.height / 2 - r.top - r.height / 2}px`;
+    fxRoot.appendChild(fly);
+    setTimeout(() => fly.remove(), 800);
+  }
+  f.state = 'caught';
+  f.el.style.visibility = 'hidden';
+  later(() => {
+    document.getElementById('caught').textContent = G.caught;
+    pulse(document.getElementById('bucket'));
+    const W = document.getElementById('pond').clientWidth;
+    f.x = f.dir > 0 ? -f.w - 8 : W + 8;
+    f.el.style.transform = `translateX(${f.x}px)`;
+    f.el.style.visibility = '';
+    f.state = 'swim';
+  }, 650);
+  gamePaws(G.list.length);
+  say(line.lob());
+  if (G.i === G.list.length - 1) { later(finishGame, 1300); return; }
+  later(() => {
+    Object.assign(G, { i: G.i + 1, locked: false });
+    setTiko('tiko_fischen');
+    gameFb('', '');
+    fischeTask();
+    if (S.settings.readTasks) say(R.voice(G.list[G.i]));
+  }, 1300);
 }
 
 /* ---------------------------------------------------------- Einstellungen */
@@ -705,7 +1323,7 @@ function settingsHTML() {
     </section>
     <div id="install-set">${installSetHTML()}</div>
     <section class="set-group"><h3>Fortschritt</h3>
-      <p class="set-note">${S.rounds} ${S.rounds === 1 ? 'Runde' : 'Runden'} gerechnet · ${S.stickers.length} von ${STICKERS.length} Stickern.</p>
+      <p class="set-note">${S.rounds} ${S.rounds === 1 ? 'Runde' : 'Runden'} gerechnet · ${gamesPlayed()} ${gamesPlayed() === 1 ? 'Spiel' : 'Spiele'} gespielt · ${S.stickers.length} von ${ALL} Stickern.</p>
       <button class="btn danger" data-act="reset">Alles zurücksetzen</button>
     </section>
     <p class="version">Rechentiger · Stand ${esc(window.BUILD || 'dev')} · Stimme: ElevenLabs · Schrift: Nunito (SIL OFL)</p>
@@ -773,10 +1391,10 @@ function onClick(e) {
     case 'settings': sfx.tap(); openSheet('settings', settingsHTML()); break;
     case 'close-sheet': closeSheet(); if (view.name === 'home') render(); break;
     case 'home': sfx.tap(); nav('home'); break;
-    case 'key': typeDigit(+b.dataset.v); break;
-    case 'del': deleteDigit(); break;
-    case 'ok': submit(); break;
-    case 'choice': submit(+b.dataset.v); break;
+    case 'key': if (view.name === 'mauer') mauerType(+b.dataset.v); else typeDigit(+b.dataset.v); break;
+    case 'del': if (view.name === 'mauer') mauerDel(); else deleteDigit(); break;
+    case 'ok': if (view.name === 'mauer') mauerSubmit(); else submit(); break;
+    case 'choice': if (view.name === 'mauer') mauerSubmit(+b.dataset.v); else submit(+b.dataset.v); break;
     case 'next': Sound.stop(); advance(); break;
     case 'hint': showHint(true); break;
     case 'replay': if (Q) Sound.say(R.voice(cur())); break;
@@ -785,6 +1403,26 @@ function onClick(e) {
       openSheet('quit', confirmHTML('Runde beenden?', 'Dann gibt es für diese Runde keinen Sticker.', 'Beenden', 'quit-yes'));
       break;
     case 'quit-yes': Q = null; Sound.stop(); nav('home'); break;
+    case 'spiele':
+      sfx.tap(); nav('spiele');
+      if (!S.spieleSeen) { S.spieleSeen = true; save(); say('spiele'); }   // die Erklärung nur beim ersten Mal
+      break;
+    case 'level': gs(b.dataset.g).level = b.dataset.v; save(); sfx.tap(); render(); break;
+    case 'spiel': sfx.tap(); startGame(b.dataset.g, b.dataset.level); break;
+    case 'brick': mauerSelect(b.dataset.k); break;
+    case 'mhint': mauerHint(); break;
+    case 'cell': schatzTap(+b.dataset.n); break;
+    case 'fish': fishTap(+b.dataset.i); break;
+    case 'schatz-weiter': sfx.tap(); finishGame(); break;
+    case 'greplay':
+      if (G && G.g === 'schatz') Sound.say(G.s.aufgaben[G.i].voice);
+      else if (G && G.g === 'fische') Sound.say(R.voice(G.list[G.i]));
+      break;
+    case 'gquit':
+      sfx.tap();
+      openSheet('quit', confirmHTML('Spiel beenden?', 'Dann gibt es für dieses Spiel keinen Sticker.', 'Beenden', 'gquit-yes'));
+      break;
+    case 'gquit-yes': stopGame(); nav('spiele'); break;
     case 'toggle': {
       const key = b.dataset.key, val = !S.settings[key];
       S.settings[key] = val; save(); sfx.tap();
@@ -800,10 +1438,10 @@ function onClick(e) {
     }
     case 'test-sound': sfx.right(3); setTimeout(() => Sound.say(['bruellen', { pause: 150 }, 'hallo_01']), 350); break;
     case 'reset':
-      openSheet('reset', confirmHTML('Alles zurücksetzen?', 'Alle Sterne und alle Sticker im Album werden gelöscht. Das lässt sich nicht rückgängig machen.', 'Zurücksetzen', 'reset-yes'));
+      openSheet('reset', confirmHTML('Alles zurücksetzen?', 'Alle Sterne, alle Spiel-Rekorde und alle Sticker im Album werden gelöscht. Das lässt sich nicht rückgängig machen.', 'Zurücksetzen', 'reset-yes'));
       break;
     case 'reset-yes':
-      S.stufen = {}; S.stickers = []; S.rounds = 0; save();
+      S.stufen = {}; S.stickers = []; S.spiele = {}; S.rounds = 0; save();
       closeSheet(true); nav('home', {}, false);
       break;
     case 'hint-close': S.hintClosed = true; save(); refreshInstall(); break;
@@ -823,6 +1461,12 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target && e.target.tagName === 'INPUT') return;
   if (e.key === 'Escape' && sheetOpen) { closeSheet(); e.preventDefault(); return; }
+  if (view.name === 'mauer' && G && !sheetOpen) {
+    if (/^[0-9]$/.test(e.key) && S.settings.answer === 'tippen') { mauerType(+e.key); e.preventDefault(); }
+    else if (e.key === 'Backspace') { mauerDel(); e.preventDefault(); }
+    else if (e.key === 'Enter') { mauerSubmit(); e.preventDefault(); }
+    return;
+  }
   if (view.name !== 'quiz' || !Q || sheetOpen) return;
   if (/^[0-9]$/.test(e.key) && S.settings.answer === 'tippen') { typeDigit(+e.key); e.preventDefault(); }
   else if (e.key === 'Backspace') { deleteDigit(); e.preventDefault(); }
@@ -842,7 +1486,7 @@ if ('serviceWorker' in navigator && window.BUILD !== 'dev' && (location.protocol
   navigator.serviceWorker.register('sw.js').catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController) return;          // erster Besuch: nichts neu laden
-    if (view.name === 'quiz' || view.name === 'result') reloadPending = true; else location.reload();
+    if (['quiz', 'result', 'spielende', ...GAME_VIEWS].includes(view.name)) reloadPending = true; else location.reload();
   });
 }
 })();
