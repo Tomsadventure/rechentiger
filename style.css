@@ -318,6 +318,28 @@ body[data-view="quiz"] .screen.quiz, body[data-view="mauer"] .screen.mauer {
 .new-sticker img { width: 210px; filter: drop-shadow(0 6px 10px rgba(80, 40, 0, .25)); animation: wiggle 2.4s ease-in-out 1.2s infinite; }
 .ns-title { font-weight: 800; font-size: 20px; }
 .ns-count { font-weight: 700; font-size: 15px; color: var(--ink-soft); }
+/* Mehrere neue Sticker (Rechen- und Glitzer-Sticker, 2026-10-28): kleiner nebeneinander */
+.new-stickers.viele { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 18px auto 8px; max-width: 760px; }
+.new-stickers.viele .new-sticker { margin: 0; width: min(230px, calc(50% - 6px)); padding: 12px 10px; gap: 4px; animation-delay: calc(.5s + var(--i) * .25s); }
+.new-stickers.viele .new-sticker img { width: min(130px, 100%); }
+.new-stickers.viele .ns-label { font-size: 16px; }
+.new-stickers.viele .ns-title { font-size: 16px; line-height: 1.2; }
+.new-stickers.viele .ns-count { font-size: 13px; }
+.new-sticker.glitzer { background: linear-gradient(135deg, #FFE6F4, #E4EEFF 35%, #E2FBEE 65%, #FFF3CF); }
+.new-sticker.glitzer .rays { background: repeating-conic-gradient(from 0deg, rgba(255, 180, 230, .4) 0 10deg, transparent 10deg 20deg, rgba(150, 220, 255, .4) 20deg 30deg, transparent 30deg 40deg); }
+.new-sticker.glitzer .ns-label { color: #B5469B; }
+/* Glitzer: ein Lichtstreifen wandert über den Sticker (nur über dem Bild – Maske = das Bild selbst, wie beim Wörtli-Panda) */
+.glanz { position: relative; display: block; }
+.glanz img { display: block; }
+.glanz::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, .75) 45%, rgba(255, 220, 255, .55) 50%, rgba(200, 255, 255, .45) 55%, transparent 68%) 0 0 / 260% 100%;
+  -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat;
+  animation: shine 2.8s ease-in-out infinite;
+}
+@keyframes shine { 0% { background-position: 130% 0; } 60%, 100% { background-position: -30% 0; } }
+.new-sticker .glanz { animation: wiggle 2.4s ease-in-out 1.2s infinite; }
+.new-sticker .glanz img { animation: none; }
 .all-done { font-size: 20px; font-weight: 800; margin: 24px 0; }
 .res-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 18px; }
 
@@ -338,6 +360,11 @@ body[data-view="quiz"] .screen.quiz, body[data-view="mauer"] .screen.mauer {
 .album-sub { display: flex; align-items: center; gap: 12px; margin: 36px 4px 4px; font-size: 24px; font-weight: 800; }
 .album-sub b { font-size: 16px; background: var(--jungle); color: #fff; padding: 3px 11px; border-radius: 12px; }
 .slotcard.empty.game { font-size: 14px; }
+.slotcard.have .glanz { width: 100%; aspect-ratio: 1; }
+.slotcard.have .glanz img { height: 100%; }
+.slotcard.have.glitzer { background: linear-gradient(135deg, #FFF0F8, #EEF4FF 50%, #FFF8E2); }
+.slotcard.empty.glitzer { font-size: 14px; border-color: #EBC9E4; color: #B97BAE; background: linear-gradient(135deg, rgba(255, 236, 248, .7), rgba(228, 238, 255, .6), rgba(255, 245, 210, .7)); }
+.album-sub.glitzer b { background: linear-gradient(120deg, #E46BC0, #8C7BEA 50%, #3FB3D9); }
 
 /* ------------------------------------------------------------ Spiele: Knopf auf der Startseite, Auswahl */
 .games-banner {
@@ -594,6 +621,15 @@ body[data-view="buch"] .screen.buch {
   from { transform: translate(-50%, -50%) rotate(var(--r, 0deg)) scale(1.12); }
   to { transform: translate(-50%, -50%) rotate(var(--r, 0deg)) scale(1); }
 }
+/* Glitzer-Sticker funkeln auch im Buch und im Stapel (2026-10-28; am Dateinamen erkannt, damit der Buch-Code gleich bleibt
+   wie im Wörtli-Panda und Wörtli-Frosch) */
+.pst[src*="sticker_glitzer_"], .tray-st img[src*="sticker_glitzer_"] { animation: funkeln 2.6s ease-in-out infinite; }
+.pst.klebt[src*="sticker_glitzer_"] { animation: klebt .35s ease-out, funkeln 2.6s ease-in-out .35s infinite; }
+.pst.sel[src*="sticker_glitzer_"] { animation: none; }
+@keyframes funkeln {
+  0%, 100% { filter: drop-shadow(0 1px 1.5px rgba(60, 40, 10, .4)); }
+  50% { filter: drop-shadow(0 0 6px rgba(255, 214, 90, .95)) brightness(1.1) saturate(1.2); }
+}
 /* der Sticker unter dem Finger: bewegt mit transform (app.js → ziehBewegen), das ist auf iPhone/iPad flüssig */
 .ghost { position: fixed; left: 0; top: 0; z-index: 40; pointer-events: none; will-change: transform; filter: drop-shadow(0 14px 14px rgba(40, 25, 5, .35)); }
 
@@ -691,6 +727,9 @@ body[data-view="buch"] .screen.buch {
 .confirm-text { font-size: 18px; line-height: 1.45; font-weight: 700; color: var(--ink-soft); }
 .confirm-actions { display: flex; gap: 12px; justify-content: flex-end; margin: 18px 0 8px; }
 .sticker-big img { width: min(420px, 100%); margin: 6px auto 12px; }
+.sticker-big .glanz { width: min(420px, 100%); margin: 6px auto 12px; }
+.sticker-big .glanz img { width: 100%; margin: 0; }
+.sb-wofuer { margin: 0 0 8px; text-align: center; font-weight: 800; color: #B5469B; }
 
 /* ------------------------------------------------------------ Bewegung */
 #fx { position: fixed; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }

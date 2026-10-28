@@ -18,7 +18,38 @@ const STICKERS = [
   ['gipfel', 'Tiko auf dem Gipfel'], ['detektiv', 'Tiko, der Detektiv'], ['krone', 'Tiko, der Rechenkönig'],
 ];
 const LAST = 'krone';
-const MAIN = new Set(STICKERS.map(s => s[0]));
+/* Zweite Album-Seite »Tikos Jahr« (2026-10-28): erst wenn die erste voll ist, gibt jede Runde einen von diesen.
+   Reihenfolge = Monate (leere Plätze zeigen den Monat); Silvester kommt als letzter. */
+const JAHR = [
+  ['jahr_dreikoenig', 'Tiko und der Dreikönigskuchen', 'Januar'], ['jahr_eislaufen', 'Tiko läuft Schlittschuh', 'Januar'],
+  ['jahr_fasnacht', 'Tiko an der Fasnacht', 'Februar'], ['jahr_iglu', 'Tiko baut ein Iglu', 'Februar'],
+  ['jahr_blumen', 'Tiko und die ersten Blumen', 'März'], ['jahr_ostern', 'Tiko sucht Ostereier', 'April'],
+  ['jahr_eier', 'Tiko malt Ostereier', 'April'], ['jahr_garten', 'Tiko im Garten', 'Mai'],
+  ['jahr_maikaefer', 'Tiko und der Maikäfer', 'Mai'], ['jahr_erdbeeren', 'Tiko pflückt Erdbeeren', 'Juni'],
+  ['jahr_zelten', 'Tiko zeltet', 'Juni'], ['jahr_glace', 'Tiko schleckt ein Glace', 'Juli'],
+  ['jahr_badi', 'Tiko in der Badi', 'Juli'], ['jahr_august', 'Tiko feiert den 1. August', 'August'],
+  ['jahr_alp', 'Tiko auf der Alp', 'August'], ['jahr_schulreise', 'Tiko auf der Schulreise', 'September'],
+  ['jahr_aepfel', 'Tiko pflückt Äpfel', 'September'], ['jahr_drachen', 'Tiko lässt einen Drachen steigen', 'Oktober'],
+  ['jahr_laub', 'Tiko springt ins Laub', 'Oktober'], ['jahr_raebeliechtli', 'Tiko und das Räbeliechtli', 'November'],
+  ['jahr_marroni', 'Tiko isst Marroni', 'November'], ['jahr_samichlaus', 'Tiko und der Samichlaus', 'Dezember'],
+  ['jahr_weihnachten', 'Tiko feiert Weihnachten', 'Dezember'], ['jahr_silvester', 'Tiko feiert Silvester', 'Silvester'],
+];
+const JAHR_LAST = 'jahr_silvester';
+/* Glitzer-Sticker (2026-10-28) für besondere Leistungen, je einmal. Zählt erst ab dieser Version (»Alle 10 Stufen« = S.drei). */
+const GLITZER = [
+  ['glitzer_sonnenbrille', 'Tiko, der Coole', '3 Sterne in einer Runde'],
+  ['glitzer_blitz', 'Tiko, der Blitz', '10 richtig hintereinander'],
+  ['glitzer_marathon', 'Tiko, der Marathonläufer', 'Runde mit 15 Rechnungen und 3 Sternen'],
+  ['glitzer_held', 'Tiko, der Superheld', '3 Sterne in Stufe 8'],
+  ['glitzer_zauberer', 'Tiko, der Zauberer', '3 Sterne in Stufe 9'],
+  ['glitzer_pokal', 'Tiko, der Champion', '3 Sterne in Stufe 10'],
+  ['glitzer_baumeister', 'Tiko, der Baumeister', 'Zahlenmauer «Schwer» mit 3 Sternen'],
+  ['glitzer_abenteurer', 'Tiko, der Abenteurer', 'Schatzsuche «Schwer» mit 3 Sternen'],
+  ['glitzer_kapitaen', 'Tiko, der Kapitän', 'Fische fangen «Schwer» mit 3 Sternen'],
+  ['glitzer_superstar', 'Tiko, der Superstar', 'Alle 10 Stufen mit 3 Sternen'],
+];
+const GLITZ = new Set(GLITZER.map(s => s[0]));
+const WOFUER = Object.fromEntries(GLITZER.map(s => [s[0], s[2]]));
 
 /* ================================================================ Spiele
    Jedes fertige Spiel gibt einen der 4 Sticker dieses Spiels (zweite Album-Seite). Die Aufgaben kommen aus spiele.js. */
@@ -40,8 +71,8 @@ const SPIEL = Object.fromEntries(SPIELE.map(g => [g.id, g]));
 const GAME_VIEWS = ['mauer', 'schatz', 'fische'];
 const LEVEL_NAME = { leicht: 'Leicht', mittel: 'Mittel', schwer: 'Schwer' };
 const GAME_STICKERS = SPIELE.flatMap(g => g.stickers);
-const STICKER = Object.fromEntries([...STICKERS, ...GAME_STICKERS]);
-const ALL = STICKERS.length + GAME_STICKERS.length;
+const STICKER = Object.fromEntries([...STICKERS, ...JAHR, ...GLITZER, ...GAME_STICKERS].map(s => [s[0], s[1]]));
+const ALL = STICKERS.length + JAHR.length + GLITZER.length + GAME_STICKERS.length;
 const SCHATZBILDER = ['insel', 'hoehle', 'berg', 'meer'];
 /* Sammelbuch: Seite 0 = Umschlag, 1 = »Dieses Buch gehört«, 2 = Titelseite, 3–28 = 13 gemalte Doppelseiten (7 neue am Schluss seit 2026-10-28,
    damit eingeklebte Sticker auf ihren Seiten bleiben) */
@@ -66,6 +97,7 @@ function load() {
     stickers: Array.isArray(d.stickers) ? d.stickers.filter(s => STICKER[s]) : [],
     spiele: d.spiele && typeof d.spiele === 'object' ? d.spiele : {},       // id -> { level, best: { leicht: 0–3, … }, games, pic }
     buch: buchLaden(d.buch),                                                 // { placed: [{ s, p, x, y, r }], p, seen }
+    drei: Array.isArray(d.drei) ? d.drei.filter(n => n >= 1 && n <= 10) : [],  // Stufen mit 3 Sternen seit den Glitzer-Stickern
     rounds: d.rounds || 0,
     albumSeen: !!d.albumSeen,
     spieleSeen: !!d.spieleSeen,
@@ -95,7 +127,6 @@ function gs(id) {
   if (!SP.LEVELS.includes(g.level)) g.level = 'leicht';
   return g;
 }
-const haveMain = () => S.stickers.filter(s => MAIN.has(s)).length;
 const haveOf = list => list.filter(([s]) => S.stickers.includes(s)).length;
 const gamesPlayed = () => SPIELE.reduce((n, g) => n + ((S.spiele[g.id] && S.spiele[g.id].games) || 0), 0);
 
@@ -460,7 +491,7 @@ function refreshInstall() {
 function startQuiz(stufe) {
   const st = S.settings;
   const list = R.buildRound({ stufe, ops: st.ops, luecke: st.luecke, length: st.length });
-  Q = { stufe, list, i: 0, tries: 0, hinted: false, input: '', streak: 0, results: [], extra: 0, locked: false };
+  Q = { stufe, list, i: 0, tries: 0, hinted: false, input: '', streak: 0, top: 0, results: [], extra: 0, locked: false };
   Sound.preload([`stufe_${stufe}`, 'los_01', 'los_02', 'los_03', 'lob_01', 'lob_02', 'lob_03', 'lob_04', 'fast_01', 'fast_02',
     'loesung', 'wieviel', ...list.flatMap(t => [...R.voice(t), `z_${R.answerOf(t)}`])]);
   nav('quiz');
@@ -578,6 +609,7 @@ function right(t, val) {
   const first = Q.tries === 0 && !Q.hinted;
   Q.results[Q.i] = { first, task: t };
   Q.streak = first ? Q.streak + 1 : 0;
+  Q.top = Math.max(Q.top, Q.streak);
   updateSlot('right');
   markChoice(val, 'right');
   setTiko('tiko_jubel');
@@ -691,26 +723,65 @@ function finish() {
   S.stufen[Q.stufe] = rec;
   S.rounds++;
   const sticker = awardSticker();
+  if (stars === 3 && !S.drei.includes(Q.stufe)) S.drei.push(Q.stufe);
+  const glitzer = awardGlitzer({
+    glitzer_sonnenbrille: stars === 3, glitzer_blitz: Q.top >= 10, glitzer_marathon: stars === 3 && total >= 15,
+    glitzer_held: stars === 3 && Q.stufe === 8, glitzer_zauberer: stars === 3 && Q.stufe === 9, glitzer_pokal: stars === 3 && Q.stufe === 10,
+    glitzer_superstar: S.drei.length >= 10,
+  });
   save();
-  const res = { stufe: Q.stufe, stars, firstRight, total, improved, sticker };
+  const res = { stufe: Q.stufe, stars, firstRight, total, improved, sticker, glitzer };
   Q = null;
   nav('result', { res });
   sfx.done();
   if (!reduced()) confetti(60);
   say([stars === 3 ? 'perfekt' : line.fertig(), { pause: 300 }]);
-  if (sticker) say(sticker === LAST ? 'album_voll' : 'sticker', true);
+  stickerSagen(sticker, glitzer);
 }
+/* Rechen-Sticker: zuerst die erste Seite, dann Tikos Jahr – je zufällig aus den fehlenden, der letzte jeder Seite zum Schluss */
 function awardSticker() {
-  const missing = STICKERS.map(s => s[0]).filter(s => !S.stickers.includes(s));
-  if (!missing.length) return null;
-  const pool = missing.length > 1 ? missing.filter(s => s !== LAST) : missing;
-  const s = pool[Math.floor(Math.random() * pool.length)];
-  S.stickers.push(s);
-  return s;
+  for (const [list, last] of [[STICKERS, LAST], [JAHR, JAHR_LAST]]) {
+    const missing = list.map(s => s[0]).filter(s => !S.stickers.includes(s));
+    if (!missing.length) continue;
+    const pool = missing.length > 1 ? missing.filter(s => s !== last) : missing;
+    const s = pool[Math.floor(Math.random() * pool.length)];
+    S.stickers.push(s);
+    return s;
+  }
+  return null;
+}
+/* Glitzer-Sticker: alle, deren Bedingung jetzt erfüllt ist und die noch fehlen (in der Reihenfolge des Albums) */
+function awardGlitzer(erfuellt) {
+  const neu = GLITZER.map(s => s[0]).filter(s => erfuellt[s] && !S.stickers.includes(s));
+  S.stickers.push(...neu);
+  return neu;
+}
+function stickerSagen(sticker, glitzer) {
+  const z = sticker === LAST ? 'album_voll' : sticker === JAHR_LAST ? 'jahr_voll' : sticker && !glitzer.length ? 'sticker' : null;
+  if (z) say(z, true);
+  if (glitzer.length) say([{ pause: 250 }, 'glitzer'], true);
+}
+/* Ein Sticker-Bild; Glitzer-Sticker bekommen einen wandernden Lichtstreifen (style.css, Maske = das Bild selbst) */
+const stickerImg = (s, alt = '') => GLITZ.has(s)
+  ? `<span class="glanz" style="--m:url(${img('sticker_' + s)})"><img src="${img('sticker_' + s)}" alt="${alt}"></span>`
+  : `<img src="${img('sticker_' + s)}" alt="${alt}">`;
+/* Die neuen Sticker auf dem Ergebnis: einer gross, mehrere etwas kleiner nebeneinander */
+function neueStickerHTML(sticker, count, glitzer) {
+  const karten = [];
+  if (sticker) karten.push({ s: sticker, label: sticker === LAST || sticker === JAHR_LAST ? 'Der letzte Sticker!' : 'Neuer Sticker!', count });
+  glitzer.forEach(s => karten.push({ s, label: 'Glitzer-Sticker!', count: `Für: ${WOFUER[s]}` }));
+  return `<div class="new-stickers${karten.length > 1 ? ' viele' : ''}">${karten.map((k, i) => `<button class="new-sticker${GLITZ.has(k.s) ? ' glitzer' : ''}" data-act="album" style="--i:${i}">
+      <span class="rays" aria-hidden="true"></span>
+      <span class="ns-label">${k.label}</span>
+      ${stickerImg(k.s)}
+      <span class="ns-title">${STICKER[k.s]}</span>
+      <span class="ns-count">${k.count}</span>
+    </button>`).join('')}</div>`;
 }
 function resultHTML(res) {
   const st = R.STUFEN[res.stufe - 1];
   const nextStufe = res.stufe < 10 && res.stars >= 2 ? res.stufe + 1 : null;
+  const gl = res.glitzer || [];
   const msg = res.stars === 3 ? 'Alles auf Anhieb richtig!' : res.stars === 2 ? 'Super gerechnet!' : res.stars === 1 ? 'Gut gemacht!' : 'Geschafft! Übung macht den Tiger stark.';
   return `<div class="screen result">
     <div class="res-top">
@@ -722,17 +793,13 @@ function resultHTML(res) {
         <p class="res-count"><b>${res.firstRight}</b> von ${res.total} Rechnungen beim ersten Mal richtig${res.improved && res.stars ? ' – neuer Rekord!' : ''}</p>
       </div>
     </div>
-    ${res.sticker ? `<button class="new-sticker" data-act="album">
-      <span class="rays" aria-hidden="true"></span>
-      <span class="ns-label">${res.sticker === LAST ? 'Der letzte Sticker!' : 'Neuer Sticker!'}</span>
-      <img src="${img('sticker_' + res.sticker)}" alt="">
-      <span class="ns-title">${STICKER[res.sticker]}</span>
-      <span class="ns-count">${haveMain()} von ${STICKERS.length} im Album</span>
-    </button>` : `<p class="all-done">Du hast alle ${STICKERS.length} Sticker gesammelt – du bist der Rechenkönig!</p>`}
+    ${res.sticker || gl.length ? neueStickerHTML(res.sticker, JAHR.some(s => s[0] === res.sticker)
+      ? `${haveOf(JAHR)} von ${JAHR.length} in Tikos Jahr` : `${haveOf(STICKERS)} von ${STICKERS.length} im Album`, gl)
+      : `<p class="all-done">Du hast alle ${STICKERS.length + JAHR.length} Rechen-Sticker gesammelt – du bist der Rechenkönig!</p>`}
     <div class="res-actions">
       ${nextStufe ? `<button class="btn primary big" data-act="start" data-stufe="${nextStufe}"><span><b>Nächste Stufe</b><small>Stufe ${nextStufe} · ${R.STUFEN[nextStufe - 1].name}</small></span>${ICON.next}</button>` : ''}
       <button class="btn ${nextStufe ? '' : 'primary big'}" data-act="start" data-stufe="${res.stufe}">${ICON.again}<span>Nochmal</span></button>
-      ${res.sticker ? `<button class="btn" data-act="buch">${ICON.book}<span>Einkleben</span></button>` : ''}
+      ${res.sticker || gl.length ? `<button class="btn" data-act="buch">${ICON.book}<span>Einkleben</span></button>` : ''}
       <button class="btn" data-act="home">${PAW}<span>Zum Dschungelpfad</span></button>
     </div>
   </div>`;
@@ -741,7 +808,8 @@ function resultHTML(res) {
 /* ------------------------------------------------------------------ Album */
 function albumHTML() {
   const have = new Set(S.stickers);
-  const card = (s, title, i) => `<button class="slotcard have" data-act="sticker" data-s="${s}" style="--r:${(i * 37 % 7) - 3}deg"><img src="${img('sticker_' + s)}" alt=""><span>${title}</span></button>`;
+  const card = (s, title, i) => `<button class="slotcard have${GLITZ.has(s) ? ' glitzer' : ''}" data-act="sticker" data-s="${s}" style="--r:${(i * 37 % 7) - 3}deg">${stickerImg(s)}<span>${title}</span></button>`;
+  const leer = (s, last, text) => `<div class="slotcard empty ${s === last ? 'last' : ''}">${s === last ? `<span class="crown">${s === LAST ? '♛' : '★'}</span>` : PAW}<span>${s === last ? 'Ganz zum Schluss' : text}</span></div>`;
   return `<div class="screen album">
     <header class="bar">
       <button class="icon-btn" data-act="home" aria-label="Zurück">${ICON.back}</button>
@@ -755,8 +823,18 @@ function albumHTML() {
       ${ICON.next}
     </button>
     <section class="album-grid">
-      ${STICKERS.map(([s, title], i) => have.has(s) ? card(s, title, i)
-        : `<div class="slotcard empty ${s === LAST ? 'last' : ''}">${s === LAST ? '<span class="crown">♛</span>' : PAW}<span>${s === LAST ? 'Ganz zum Schluss' : '?'}</span></div>`).join('')}
+      ${STICKERS.map(([s, title], i) => have.has(s) ? card(s, title, i) : leer(s, LAST, '?')).join('')}
+    </section>
+    <h2 class="album-sub"><span>Tikos Jahr</span><b>${haveOf(JAHR)}/${JAHR.length}</b></h2>
+    <p class="album-intro">Ist die erste Seite voll, gibt es für jede geschaffte Runde einen Sticker aus Tikos Jahr.</p>
+    <section class="album-grid">
+      ${JAHR.map(([s, title, monat], i) => have.has(s) ? card(s, title, i + 2) : leer(s, JAHR_LAST, monat)).join('')}
+    </section>
+    <h2 class="album-sub glitzer"><span>Glitzer-Sticker</span><b>${haveOf(GLITZER)}/${GLITZER.length}</b></h2>
+    <p class="album-intro">Ganz besondere Sticker für ganz besondere Leistungen.</p>
+    <section class="album-grid">
+      ${GLITZER.map(([s, title, wofuer], i) => have.has(s) ? card(s, title, i + 3)
+        : `<div class="slotcard empty glitzer"><span class="crown">✦</span><span>${wofuer}${s === 'glitzer_superstar' && S.drei.length ? ` (${S.drei.length} von 10)` : ''}</span></div>`).join('')}
     </section>
     <h2 class="album-sub"><span>Sticker aus Tikos Spielen</span><b>${haveOf(GAME_STICKERS)}/${GAME_STICKERS.length}</b></h2>
     <p class="album-intro">Für jedes fertige Spiel gibt es einen Sticker aus diesem Spiel.</p>
@@ -800,7 +878,7 @@ function startGame(id, level) {
   const st = gs(id);
   if (SP.LEVELS.includes(level)) st.level = level;
   stopGame();
-  G = { g: id, level: st.level, results: [], streak: 0, tries: 0, timers: [], locked: false };
+  G = { g: id, level: st.level, results: [], streak: 0, top: 0, tries: 0, timers: [], locked: false };
   const voices = ['los_01', 'los_02', 'los_03', 'lob_01', 'lob_02', 'lob_03', 'lob_04', 'fast_01', 'fast_02', 'loesung', `${id}_start`];
   if (id === 'mauer') {
     G.walls = SP.mauerSpiel(G.level); G.w = 0;
@@ -837,6 +915,7 @@ function later(fn, ms) {
 function scoreGame(first) {
   G.results.push({ first });
   G.streak = first ? G.streak + 1 : 0;
+  G.top = Math.max(G.top, G.streak);
   return G.streak;
 }
 function gamePaws(total) {
@@ -863,13 +942,16 @@ function finishGame() {
   const missing = SPIEL[g].stickers.map(s => s[0]).filter(s => !S.stickers.includes(s));
   const sticker = missing.length ? missing[Math.floor(Math.random() * missing.length)] : null;
   if (sticker) S.stickers.push(sticker);
+  const schwer = level === 'schwer' && stars === 3;
+  const glitzer = awardGlitzer({ glitzer_blitz: G.top >= 10, glitzer_baumeister: schwer && g === 'mauer',
+    glitzer_abenteurer: schwer && g === 'schatz', glitzer_kapitaen: schwer && g === 'fische' });
   save();
   stopGame();
-  nav('spielende', { res: { g, level, stars, firstRight, total, improved, sticker } });
+  nav('spielende', { res: { g, level, stars, firstRight, total, improved, sticker, glitzer } });
   sfx.done();
   if (!reduced()) confetti(50);
   say([stars === 3 ? 'perfekt' : { mauer: 'mauer_fertig', fische: 'fische_fertig' }[g] || line.fertig(), { pause: 300 }]);
-  if (sticker) say('sticker', true);
+  if (sticker || glitzer.length) stickerSagen(sticker, glitzer);
   else if (haveOf(GAME_STICKERS) < GAME_STICKERS.length) say('spiel_alle', true);
 }
 function spielendeHTML(res) {
@@ -877,7 +959,7 @@ function spielendeHTML(res) {
   const harder = li < 2 && res.stars >= 2 ? SP.LEVELS[li + 1] : null;
   const msg = res.stars === 3 ? 'Alles auf Anhieb richtig!' : res.stars === 2 ? 'Super gespielt!' : res.stars === 1 ? 'Gut gemacht!' : 'Geschafft! Übung macht den Tiger stark.';
   const what = { mauer: 'Steinen beim ersten Mal richtig', schatz: 'Zahlen beim ersten Mal gefunden', fische: 'Fischen beim ersten Mal gefangen' }[res.g];
-  const rest = haveOf(GAME_STICKERS) < GAME_STICKERS.length;
+  const rest = haveOf(GAME_STICKERS) < GAME_STICKERS.length, gl = res.glitzer || [];
   return `<div class="screen result">
     <div class="res-top">
       <img class="res-tiko" src="${img('tiko_jubel')}" alt="Tiko jubelt">
@@ -888,17 +970,12 @@ function spielendeHTML(res) {
         <p class="res-count"><b>${res.firstRight}</b> von ${res.total} ${what}${res.improved && res.stars ? ' – neuer Rekord!' : ''}</p>
       </div>
     </div>
-    ${res.sticker ? `<button class="new-sticker" data-act="album">
-      <span class="rays" aria-hidden="true"></span>
-      <span class="ns-label">Neuer Sticker!</span>
-      <img src="${img('sticker_' + res.sticker)}" alt="">
-      <span class="ns-title">${STICKER[res.sticker]}</span>
-      <span class="ns-count">${haveOf(g.stickers)} von ${g.stickers.length} ${g.kurz}-Stickern</span>
-    </button>` : `<p class="all-done">Du hast alle ${g.kurz}-Sticker!${rest ? ' Probier doch ein anderes Spiel.' : ' Und alle Spiel-Sticker!'}</p>`}
+    ${res.sticker || gl.length ? neueStickerHTML(res.sticker, `${haveOf(g.stickers)} von ${g.stickers.length} ${g.kurz}-Stickern`, gl) : ''}
+    ${res.sticker ? '' : `<p class="all-done">Du hast alle ${g.kurz}-Sticker!${rest ? ' Probier doch ein anderes Spiel.' : ' Und alle Spiel-Sticker!'}</p>`}
     <div class="res-actions">
       ${harder ? `<button class="btn primary big" data-act="spiel" data-g="${res.g}" data-level="${harder}"><span><b>Schwerer</b><small>${g.name} · ${LEVEL_NAME[harder]}</small></span>${ICON.next}</button>` : ''}
       <button class="btn ${harder ? '' : 'primary big'}" data-act="spiel" data-g="${res.g}" data-level="${res.level}">${ICON.again}<span>Nochmal</span></button>
-      ${res.sticker ? `<button class="btn" data-act="buch">${ICON.book}<span>Einkleben</span></button>` : ''}
+      ${res.sticker || gl.length ? `<button class="btn" data-act="buch">${ICON.book}<span>Einkleben</span></button>` : ''}
       <button class="btn" data-act="spiele">${PAW}<span>Andere Spiele</span></button>
     </div>
   </div>`;
@@ -1834,7 +1911,7 @@ function confirmHTML(title, text, yes, act) {
 }
 function stickerSheetHTML(s) {
   return `<div class="sheet-head"><h2>${STICKER[s]}</h2><button class="icon-btn" data-act="close-sheet" aria-label="Schliessen">${ICON.close}</button></div>
-  <div class="sheet-body sticker-big"><img src="${img('sticker_' + s)}" alt="${STICKER[s]}"></div>`;
+  <div class="sheet-body sticker-big">${stickerImg(s, STICKER[s])}${GLITZ.has(s) ? `<p class="sb-wofuer">Glitzer-Sticker für: ${WOFUER[s]}</p>` : ''}</div>`;
 }
 
 /* ------------------------------------------------------------- Effekte */
@@ -1948,7 +2025,7 @@ function onClick(e) {
       openSheet('reset', confirmHTML('Alles zurücksetzen?', 'Alle Sterne, alle Spiel-Rekorde, alle Sticker im Album und das Sammelbuch werden gelöscht. Das lässt sich nicht rückgängig machen.', 'Zurücksetzen', 'reset-yes'));
       break;
     case 'reset-yes':
-      S.stufen = {}; S.stickers = []; S.spiele = {}; S.buch = buchLaden(null); S.rounds = 0; save();
+      S.stufen = {}; S.stickers = []; S.drei = []; S.spiele = {}; S.buch = buchLaden(null); S.rounds = 0; save();
       closeSheet(true); nav('home', {}, false);
       break;
     case 'hint-close': S.hintClosed = true; save(); refreshInstall(); break;
