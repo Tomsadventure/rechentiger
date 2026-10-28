@@ -1,4 +1,4 @@
-/* Rechentiger – Tikos Spiele: Zahlenmauer, Schatzsuche im Hunderterfeld, Fische fangen.
+/* Rechentiger – Tikos Spiele: Zahlenmauer, Schatzsuche im Hunderterfeld, Fische fangen, Memory.
    Nur die Aufgaben, ohne Bildschirm-Code, damit Scripts/test.mjs alles mit Node prüfen kann (window.Spiele bzw. module.exports). */
 (function (root) {
 'use strict';
@@ -170,8 +170,40 @@ function fischRunde(level, ops = 'beides', rnd = Math.random, length = 10) {
   return out;
 }
 
+/* ============================================================ Memory (2026-10-28)
+   Ein Paar = eine Rechnung und ihr Ergebnis. Alle Ergebnisse verschieden, damit jede Rechnung genau eine Partnerkarte hat.
+   Leicht: 6 Paare, Plus und Minus bis 20. Mittel: 8 Paare bis 100 ohne Zehnerübergang (wie Stufe 1, 2, 3, 6, 7).
+   Schwer: 10 Paare mit Zehnerübergang (wie Stufe 5 und 8); die Ergebnisse liegen nah beieinander (42, 43, 52 …),
+   damit man wirklich rechnen muss. */
+const MEMORY = { leicht: { paare: 6, stufen: null }, mittel: { paare: 8, stufen: [1, 2, 3, 6, 7] }, schwer: { paare: 10, stufen: [5, 8] } };
+function bis20(op, rnd) {
+  for (;;) {
+    const b = randInt(rnd, 2, 9);
+    if (op === '+') { const a = randInt(rnd, 2, 15); if (a + b <= 20) return { a, b }; }
+    else { const a = randInt(rnd, 6, 20); if (a - b >= 1) return { a, b }; }
+  }
+}
+const nah = (x, liste) => liste.some(y => [1, 2, 9, 10, 11].includes(Math.abs(x - y)));
+function memory(level, ops = 'beides', rnd = Math.random) {
+  const { paare, stufen } = MEMORY[level];
+  const opList = ops === 'plus' ? ['+'] : ops === 'minus' ? ['-'] : ['+', '-'];
+  const order = R.shuffle(Array.from({ length: paare }, (_, i) => opList[i % opList.length]), rnd);
+  const list = [];
+  for (let g = 0; list.length < paare; g++) {
+    const op = order[list.length];
+    const t = stufen ? R.makeTask(pick(rnd, stufen), op, false, rnd) : bis20(op, rnd);
+    const c = op === '+' ? t.a + t.b : t.a - t.b;
+    if (c < 1 || list.some(x => x.c === c)) continue;
+    if (level === 'schwer' && list.length && g < 3000 && !nah(c, list.map(x => x.c))) continue;
+    list.push({ a: t.a, op, b: t.b, c });
+  }
+  // Karten: zu jedem Paar die Rechnung und das Ergebnis, gemischt
+  const karten = R.shuffle(list.flatMap((t, p) => [{ p, rechnung: true, t }, { p, rechnung: false, n: t.c }]), rnd);
+  return { level, paare: list, karten };
+}
+
 const api = { LEVELS, key, val, bricks, computable, solve, mauer, mauerSpiel, mauerHilfe, mauerNaechster,
-  pos, anchor, schatz, FISCH_STUFEN, fischRunde };
+  pos, anchor, schatz, FISCH_STUFEN, fischRunde, MEMORY, memory };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else root.Spiele = api;
 })(typeof window !== 'undefined' ? window : globalThis);

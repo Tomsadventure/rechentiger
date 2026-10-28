@@ -46,6 +46,7 @@ const GLITZER = [
   ['glitzer_baumeister', 'Tiko, der Baumeister', 'Zahlenmauer «Schwer» mit 3 Sternen'],
   ['glitzer_abenteurer', 'Tiko, der Abenteurer', 'Schatzsuche «Schwer» mit 3 Sternen'],
   ['glitzer_kapitaen', 'Tiko, der Kapitän', 'Fische fangen «Schwer» mit 3 Sternen'],
+  ['glitzer_memory', 'Tiko, der Memory-Meister', 'Memory «Schwer» mit 3 Sternen'],
   ['glitzer_superstar', 'Tiko, der Superstar', 'Alle 10 Stufen mit 3 Sternen'],
 ];
 const GLITZ = new Set(GLITZER.map(s => s[0]));
@@ -66,9 +67,13 @@ const SPIELE = [
     levels: { leicht: 'Wie Stufe 1 bis 4', mittel: 'Wie Stufe 3 bis 7', schwer: 'Wie Stufe 5 bis 9' },
     stickers: [['fisch_netz', 'Tiko fängt einen Fisch'], ['fisch_boot', 'Tiko im Ruderboot'], ['fisch_tauchen', 'Tiko taucht'],
       ['fisch_steg', 'Tiko am Steg']] },
+  { id: 'memory', name: 'Memory', kurz: 'Memory', pose: 'tiko_memory', info: 'Finde die Paare: eine Rechnung und ihr Ergebnis.',
+    levels: { leicht: '6 Paare bis 20', mittel: '8 Paare bis 100', schwer: '10 Paare über den Zehner' },
+    stickers: [['memory_karten', 'Tiko spielt Memory'], ['memory_paar', 'Tiko findet ein Paar'], ['memory_kartenhaus', 'Tiko baut ein Kartenhaus'],
+      ['memory_zauber', 'Tiko zaubert']] },
 ];
 const SPIEL = Object.fromEntries(SPIELE.map(g => [g.id, g]));
-const GAME_VIEWS = ['mauer', 'schatz', 'fische'];
+const GAME_VIEWS = ['mauer', 'schatz', 'fische', 'memory'];
 const LEVEL_NAME = { leicht: 'Leicht', mittel: 'Mittel', schwer: 'Schwer' };
 const GAME_STICKERS = SPIELE.flatMap(g => g.stickers);
 const STICKER = Object.fromEntries([...STICKERS, ...JAHR, ...GLITZER, ...GAME_STICKERS].map(s => [s[0], s[1]]));
@@ -382,6 +387,7 @@ function render() {
   else if (view.name === 'mauer') { app.innerHTML = mauerHTML(); mauerShow(); }
   else if (view.name === 'schatz') { app.innerHTML = schatzHTML(); schatzShow(); }
   else if (view.name === 'fische') { app.innerHTML = fischeHTML(); fischeSetup(); }
+  else if (view.name === 'memory') { app.innerHTML = memoryHTML(); memoryShow(); }
   else if (view.name === 'spielende') app.innerHTML = spielendeHTML(view.res);
   else if (view.name === 'buch') { app.innerHTML = buchHTML(); buchZeigen(); }
 }
@@ -891,9 +897,13 @@ function startGame(id, level) {
     const pics = SCHATZBILDER.filter(p => p !== st.pic);
     G.pic = st.pic = pics[Math.floor(Math.random() * pics.length)];
     voices.push('das_ist', 'hier_ist_es', 'schatz_fertig', ...G.s.aufgaben.flatMap(a => a.voice));
-  } else {
+  } else if (id === 'fische') {
     G.list = SP.fischRunde(G.level, S.settings.ops); G.i = 0; G.caught = 0;
     voices.push('fische_fertig', ...G.list.flatMap(t => [...R.voice(t), `z_${R.answerOf(t)}`]));
+  } else {
+    G.m = SP.memory(G.level, S.settings.ops);
+    Object.assign(G, { offen: [], gefunden: new Set(), gesehen: new Set(), fehler: {}, kannte: false, zu: 0 });
+    voices.push('memory_merken', 'memory_hilfe', 'memory_fertig', ...G.m.karten.flatMap(mkStimme));
   }
   save();
   Sound.preload(voices);
@@ -946,13 +956,13 @@ function finishGame() {
   if (sticker) S.stickers.push(sticker);
   const schwer = level === 'schwer' && stars === 3;
   const glitzer = awardGlitzer({ glitzer_blitz: G.top >= 10, glitzer_baumeister: schwer && g === 'mauer',
-    glitzer_abenteurer: schwer && g === 'schatz', glitzer_kapitaen: schwer && g === 'fische' });
+    glitzer_abenteurer: schwer && g === 'schatz', glitzer_kapitaen: schwer && g === 'fische', glitzer_memory: schwer && g === 'memory' });
   save();
   stopGame();
   nav('spielende', { res: { g, level, stars, firstRight, total, improved, sticker, glitzer } });
   sfx.done();
   if (!reduced()) confetti(50);
-  say([stars === 3 ? 'perfekt' : { mauer: 'mauer_fertig', fische: 'fische_fertig' }[g] || line.fertig(), { pause: 300 }]);
+  say([stars === 3 ? 'perfekt' : { mauer: 'mauer_fertig', fische: 'fische_fertig', memory: 'memory_fertig' }[g] || line.fertig(), { pause: 300 }]);
   if (sticker || glitzer.length) stickerSagen(sticker, glitzer);
   else if (haveOf(GAME_STICKERS) < GAME_STICKERS.length) say('spiel_alle', true);
 }
@@ -960,7 +970,8 @@ function spielendeHTML(res) {
   const g = SPIEL[res.g], li = SP.LEVELS.indexOf(res.level);
   const harder = li < 2 && res.stars >= 2 ? SP.LEVELS[li + 1] : null;
   const msg = res.stars === 3 ? 'Alles auf Anhieb richtig!' : res.stars === 2 ? 'Super gespielt!' : res.stars === 1 ? 'Gut gemacht!' : 'Geschafft! Übung macht den Tiger stark.';
-  const what = { mauer: 'Steinen beim ersten Mal richtig', schatz: 'Zahlen beim ersten Mal gefunden', fische: 'Fischen beim ersten Mal gefangen' }[res.g];
+  const what = { mauer: 'Steinen beim ersten Mal richtig', schatz: 'Zahlen beim ersten Mal gefunden', fische: 'Fischen beim ersten Mal gefangen',
+    memory: 'Paaren ohne Fehler gefunden' }[res.g];
   const rest = haveOf(GAME_STICKERS) < GAME_STICKERS.length, gl = res.glitzer || [];
   return `<div class="screen result">
     <div class="res-top">
@@ -1407,6 +1418,108 @@ function fishCaught(f, ans) {
     fischeTask();
     if (S.settings.readTasks) say(R.voice(G.list[G.i]));
   }, 1300);
+}
+
+/* ---------------------------------------------------------- Spiele: Memory (2026-10-28)
+   Verdeckte Karten mit Rechnungen und Ergebnissen. Zwei aufdecken – passen sie, bleiben sie offen.
+   Ein Fehler zählt nur, wenn das Kind die passende Karte schon gesehen hatte (sonst war es Pech, nicht Vergessen oder Verrechnen).
+   Beim ersten solchen Fehler erinnert Tiko daran, beim zweiten leuchten die zwei Karten des Paars. */
+const mkEl = i => document.querySelector(`#mfeld [data-i="${i}"]`);
+const mkText = k => (k.rechnung ? `${k.t.a} ${k.t.op === '+' ? '+' : '−'} ${k.t.b}` : String(k.n));
+const mkStimme = k => (k.rechnung ? R.voice(k.t) : [`z_${k.n}`]);
+const mkPartner = i => G.m.karten.findIndex((x, j) => j !== i && x.p === G.m.karten[i].p);
+function memoryHTML() {
+  return `<div class="screen game memory" id="game">
+    ${gameHeader(replayBtn)}
+    <section class="mtop">
+      <img class="mtiko" id="tiko" src="${img('tiko_memory')}" alt="">
+      <div class="fb" id="fb" aria-live="polite">Finde die Paare: Rechnung und Ergebnis.</div>
+      <div class="mzahl" aria-label="Gefundene Paare"><b id="mpaare">0</b><small>/${G.m.paare.length}</small></div>
+    </section>
+    <div class="mfeld" id="mfeld">${G.m.karten.map((k, i) => `<button class="mkarte" data-act="mkarte" data-i="${i}" aria-label="Karte ${i + 1}, verdeckt"><span class="mk-rueck" aria-hidden="true">${PAW}</span><span class="mk-vorn${k.rechnung ? '' : ' zahl'}">${mkText(k)}</span></button>`).join('')}</div>
+  </div>`;
+}
+function memoryShow() {
+  memoryLayout();
+  gamePaws(G.m.paare.length);
+}
+/* Wie viele Karten nebeneinander? So, dass die Karten möglichst gross werden und alle ohne Scrollen Platz haben. */
+function memoryLayout() {
+  const feld = document.getElementById('mfeld');
+  if (!feld || !G || !G.m) return;
+  const N = G.m.karten.length, W = feld.clientWidth, H = feld.clientHeight, gap = W < 500 ? 8 : 12;
+  let best = null;
+  for (let c = 2; c <= 8; c++) {
+    const r = Math.ceil(N / c), w = Math.min((W - (c - 1) * gap) / c, (H - (r - 1) * gap) / r * 1.2, 220);
+    if (!best || w > best.w) best = { c, w };
+  }
+  const w = Math.floor(best.w), h = Math.floor(best.w / 1.2);
+  feld.style.cssText = `--sp:${best.c};--kw:${w}px;--kh:${h}px;--gap:${gap}px;--kf:${Math.round(Math.min(h * 0.34, w / 4.4))}px`;
+}
+window.addEventListener('resize', () => { if (G && G.g === 'memory') memoryLayout(); });
+function karteDrehen(i, auf) {
+  const el = mkEl(i);
+  el.classList.toggle('auf', auf);
+  el.setAttribute('aria-label', auf ? mkText(G.m.karten[i]) : `Karte ${i + 1}, verdeckt`);
+  if (!reduced()) { el.classList.remove('dreh'); void el.offsetWidth; el.classList.add('dreh'); }
+}
+function memoryTap(i) {
+  if (!G || G.locked || !G.m) return;
+  const k = G.m.karten[i];
+  if (!k || G.gefunden.has(k.p)) return;
+  if (G.offen.length === 2) memoryZu();                // zwei falsche liegen noch offen: gleich zudecken (auch die angetippte)
+  if (G.offen.includes(i)) return;
+  sfx.tap();
+  karteDrehen(i, true);
+  if (S.settings.readTasks) say(mkStimme(k));
+  if (!G.offen.length) {
+    G.kannte = G.gesehen.has(mkPartner(i));           // hätte das Kind die passende Karte schon wissen können?
+    G.gesehen.add(i);
+    G.offen = [i];
+    return;
+  }
+  const j = G.offen[0], kj = G.m.karten[j];
+  G.gesehen.add(i);
+  G.offen.push(i);
+  if (kj.p === k.p) { memoryPaar(k.p, j, i); return; }
+  sfx.wrong();
+  [j, i].forEach(x => mkEl(x).classList.add('falsch'));
+  nope(mkEl(i));
+  if (G.kannte) {
+    const f = G.fehler[kj.p] = (G.fehler[kj.p] || 0) + 1;
+    G.streak = 0;
+    setTiko('tiko_mut');
+    if (f === 1) { gameFb('soft', 'Die passende Karte hast du schon gesehen!'); say('memory_merken', true); }
+    else {
+      G.m.karten.forEach((x, n) => { if (x.p === kj.p) mkEl(n).classList.add('glow'); });
+      gameFb('soft', 'Schau, die leuchtenden Karten gehören zusammen!');
+      say('memory_hilfe', true);
+    }
+  } else gameFb('', pickText(['Kein Paar. Merk dir die Karten!', 'Die passen nicht zusammen.', 'Weitersuchen!']));
+  clearTimeout(G.zu);
+  G.zu = setTimeout(() => { if (G && G.offen.length === 2) memoryZu(); }, 1700);
+  G.timers.push(G.zu);
+}
+function memoryZu() {
+  clearTimeout(G.zu);
+  G.offen.forEach(x => { mkEl(x).classList.remove('falsch'); karteDrehen(x, false); });
+  G.offen = [];
+  setTiko('tiko_memory');
+}
+function memoryPaar(p, j, i) {
+  G.offen = [];
+  G.gefunden.add(p);
+  const streak = scoreGame(!G.fehler[p]), t = G.m.paare[p];
+  sfx.right(streak);
+  setTiko('tiko_jubel');
+  later(() => [j, i].forEach(x => { const el = mkEl(x); el.classList.remove('glow', 'dreh'); el.classList.add('paar'); }), reduced() ? 0 : 280);
+  if (!reduced()) burst(mkEl(i), 10);
+  document.getElementById('mpaare').textContent = G.gefunden.size;
+  gamePaws(G.m.paare.length);
+  gameFb('good', `${pickText(['Ein Paar!', 'Super!', 'Genau!', 'Tigerstark!'])} <b>${t.a} ${t.op === '+' ? '+' : '−'} ${t.b} = ${t.c}</b>`);
+  say(line.lob(), true);
+  if (G.gefunden.size === G.m.paare.length) { G.locked = true; later(finishGame, 1500); return; }
+  later(() => { if (!G.offen.length) setTiko('tiko_memory'); }, 1200);
 }
 
 /* ---------------------------------------------------------- Sammelbuch
@@ -1991,10 +2104,12 @@ function onClick(e) {
     case 'mhint': mauerHint(); break;
     case 'cell': schatzTap(+b.dataset.n); break;
     case 'fish': fishTap(+b.dataset.i); break;
+    case 'mkarte': memoryTap(+b.dataset.i); break;
     case 'schatz-weiter': sfx.tap(); finishGame(); break;
     case 'greplay':
       if (G && G.g === 'schatz') Sound.say(G.s.aufgaben[G.i].voice);
       else if (G && G.g === 'fische') Sound.say(R.voice(G.list[G.i]));
+      else if (G && G.g === 'memory') Sound.say(G.offen.flatMap(i => mkStimme(G.m.karten[i])));
       break;
     case 'gquit':
       sfx.tap();

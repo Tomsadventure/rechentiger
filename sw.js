@@ -1,5 +1,5 @@
 /* Offline: hält alle Dateien eines App-Stands auf dem Gerät. VERSION und FILES setzt Scripts/bauen.py ein. */
-const VERSION = '2026-10-28-0c0ca47';
+const VERSION = '2026-10-28-e926a24';
 const FILES = [
   './',
   'app.js',
@@ -252,6 +252,10 @@ const FILES = [
   'audio/mauer_tipp_minus.mp3',
   'audio/mauer_tipp_plus.mp3',
   'audio/mauer_weiter.mp3',
+  'audio/memory_fertig.mp3',
+  'audio/memory_hilfe.mp3',
+  'audio/memory_merken.mp3',
+  'audio/memory_start.mp3',
   'audio/perfekt.mp3',
   'audio/schatz_fertig.mp3',
   'audio/schatz_start.mp3',
@@ -423,6 +427,7 @@ const FILES = [
   'img/sticker_glitzer_held.webp',
   'img/sticker_glitzer_kapitaen.webp',
   'img/sticker_glitzer_marathon.webp',
+  'img/sticker_glitzer_memory.webp',
   'img/sticker_glitzer_pokal.webp',
   'img/sticker_glitzer_sonnenbrille.webp',
   'img/sticker_glitzer_superstar.webp',
@@ -460,6 +465,10 @@ const FILES = [
   'img/sticker_mauer_burg.webp',
   'img/sticker_mauer_sandburg.webp',
   'img/sticker_mauer_turm.webp',
+  'img/sticker_memory_karten.webp',
+  'img/sticker_memory_kartenhaus.webp',
+  'img/sticker_memory_paar.webp',
+  'img/sticker_memory_zauber.webp',
   'img/sticker_musik.webp',
   'img/sticker_picknick.webp',
   'img/sticker_pirat.webp',
@@ -485,6 +494,7 @@ const FILES = [
   'img/tiko_hallo.webp',
   'img/tiko_jubel.webp',
   'img/tiko_liegt.webp',
+  'img/tiko_memory.webp',
   'img/tiko_mut.webp',
   'img/tiko_schatz.webp',
   'index.html',

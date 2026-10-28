@@ -504,6 +504,42 @@ body[data-view="schatz"] .screen.schatz, body[data-view="fische"] .screen.fische
 .fish.renew .fnum { animation: numpop .35s cubic-bezier(.3, 1.6, .5, 1); }
 .fish.glow .fnum { background: var(--sun); box-shadow: 0 0 0 4px #fff, 0 0 22px 6px var(--sun); animation: numpulse .9s ease-in-out infinite; }
 .fly-fish { position: fixed; z-index: 31; pointer-events: none; animation: tobucket .65s ease-in forwards; }
+/* ------------------------------------------------------------ Memory (2026-10-28)
+   Kartengrösse und Spalten rechnet app.js aus (memoryLayout: --sp, --kw, --kh, --kf). Umdrehen ohne 3D: die Karte wird
+   schmal (scaleX 0) und in der Mitte wechselt die Seite (visibility mit Verzögerung) – das flackert auch in Safari nicht. */
+body[data-view="memory"] .screen.memory { display: flex; flex-direction: column; height: 100vh; height: 100dvh; gap: 10px; }
+.mtop { display: flex; align-items: center; gap: 10px; padding: 6px 16px 6px 6px; border-radius: var(--r-lg); background: var(--card); box-shadow: var(--lift); }
+.mtiko { width: clamp(52px, 9vh, 84px); flex: none; transform-origin: 50% 100%; }
+.mtop .fb { flex: 1; min-width: 0; margin: 0; min-height: 0; font-size: clamp(17px, 2.6vh, 22px); line-height: 1.25; }
+.mtop .fb b { white-space: nowrap; }
+.mzahl { flex: none; display: flex; align-items: baseline; color: var(--tiger-deep); font-weight: 800; font-variant-numeric: tabular-nums; }
+.mzahl b { font-size: 30px; }
+.mzahl small { font-size: 18px; font-weight: 800; }
+.mfeld {
+  flex: 1; min-height: 0; display: grid; gap: var(--gap, 10px); justify-content: center; align-content: center;
+  grid-template-columns: repeat(var(--sp, 4), var(--kw, 80px)); grid-auto-rows: var(--kh, 66px);
+}
+.mkarte { position: relative; border-radius: 16px; box-shadow: var(--lift-sm); }
+.mk-rueck, .mk-vorn { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; }
+.mk-rueck { background: var(--stripes) center / 170% auto, linear-gradient(160deg, #F9A84A, var(--tiger)); border: 3px solid #fff; color: #fff; }
+.mk-rueck .paw { width: 38%; height: 38%; filter: drop-shadow(0 2px 2px rgba(80, 40, 0, .35)); }
+.mk-vorn {
+  visibility: hidden; background: #fff; border: 3px solid var(--line); color: var(--ink); font-size: var(--kf, 22px); font-weight: 800;
+  font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -.01em;
+}
+.mk-vorn.zahl { background: var(--tiger-tint); border-color: var(--tiger-soft); color: var(--tiger-deep); font-size: calc(var(--kf, 22px) * 1.25); }
+.mkarte.auf .mk-vorn { visibility: visible; }
+.mkarte.auf .mk-rueck { visibility: hidden; }
+.mkarte.falsch .mk-vorn { border-color: var(--berry); }
+.mkarte.paar { box-shadow: none; animation: mkpaar .45s ease-out; }
+.mkarte.paar .mk-vorn { border-color: var(--jungle); background: var(--jungle-soft); color: var(--jungle-deep); }
+.mkarte.glow { box-shadow: 0 0 0 4px #fff, 0 0 22px 6px var(--sun); animation: numpulse .9s ease-in-out infinite; }
+.mkarte.dreh { animation: mkdreh .28s ease-in-out; }
+.mkarte.dreh .mk-vorn, .mkarte.dreh .mk-rueck { transition: visibility 0s .14s; }
+@keyframes mkdreh { 50% { transform: scaleX(0); } }
+@keyframes mkpaar { 40% { transform: scale(1.08); } }
+@media (min-width: 640px) { .games { grid-template-columns: 1fr 1fr; } }
+
 @keyframes numpop { from { scale: .3; } to { scale: 1; } }
 @keyframes numpulse { 50% { scale: 1.15; } }
 @keyframes tobucket {
@@ -752,6 +788,7 @@ body[data-view="buch"] .screen.buch {
 @keyframes wiggle { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-3deg) scale(1.03); } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .mkarte .mk-vorn, .mkarte .mk-rueck { transition-delay: 0s !important; }
 }
 
 /* Schmale Handys: Startseite stapeln */
@@ -796,6 +833,13 @@ body[data-view="buch"] .screen.buch {
   .fcard .slot { border-radius: 12px; border-width: 3px; }
   .bucket { font-size: 17px; }
   .bucket .ic { width: 30px; height: 30px; }
+  .mtop { gap: 6px; padding: 4px 12px 4px 4px; }
+  .mtiko { width: 50px; }
+  .mtop .fb { font-size: 16px; }
+  .mzahl b { font-size: 24px; }
+  .mzahl small { font-size: 15px; }
+  .mkarte { border-radius: 12px; }
+  .mk-rueck, .mk-vorn { border-width: 2px; }
   .path { grid-template-columns: 1fr 1fr; gap: 12px; }
   .stone { min-height: 140px; padding: 14px 12px 12px; }
   .stone-name { font-size: 16px; }
