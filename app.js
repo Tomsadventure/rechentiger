@@ -74,11 +74,12 @@ const GAME_STICKERS = SPIELE.flatMap(g => g.stickers);
 const STICKER = Object.fromEntries([...STICKERS, ...JAHR, ...GLITZER, ...GAME_STICKERS].map(s => [s[0], s[1]]));
 const ALL = STICKERS.length + JAHR.length + GLITZER.length + GAME_STICKERS.length;
 const SCHATZBILDER = ['insel', 'hoehle', 'berg', 'meer'];
-/* Sammelbuch: Seite 0 = Umschlag, 1 = »Dieses Buch gehört«, 2 = Titelseite, 3–28 = 13 gemalte Doppelseiten (7 neue am Schluss seit 2026-10-28,
+/* Sammelbuch: Seite 0 = Umschlag, 1 = »Dieses Buch gehört«, 2 = Titelseite, 3–30 = 14 gemalte Doppelseiten (neue kommen immer ans Ende,
    damit eingeklebte Sticker auf ihren Seiten bleiben) */
 const SZENEN = [['dschungel', 'Im Dschungel'], ['meer', 'Am Meer'], ['berge', 'In den Bergen'], ['unterwasser', 'Unter Wasser'],
   ['winter', 'Im Winter'], ['nacht', 'In der Nacht'], ['burg', 'In der Burg'], ['gipfel', 'Auf dem Gipfel'],
-  ['haus', 'Zu Hause'], ['see', 'Am See'], ['insel', 'Auf der Insel'], ['regen', 'Im Regen'], ['buehne', 'Auf der Bühne']];
+  ['haus', 'Zu Hause'], ['see', 'Am See'], ['insel', 'Auf der Insel'], ['regen', 'Im Regen'], ['buehne', 'Auf der Bühne'],
+  ['weihnachten', 'An Weihnachten']];
 const BUCH_SEITEN = 3 + 2 * SZENEN.length;
 const img = name => `img/${name}.webp`;
 
